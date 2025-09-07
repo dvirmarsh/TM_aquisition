@@ -465,7 +465,8 @@ class TMMeasurementSystem:
                    symmetry_weight: float = 0.0,
                    optimize_on_field: bool = False,
                    field_targets: torch.Tensor = None,
-                   field_component: str = 'E') -> Dict:
+                   field_component: str = 'E',
+                   field_planes: str = 'image') -> Dict:
         """
         Optimize the transmission matrix to match the target measurements (both planes).
         Args:
@@ -479,8 +480,9 @@ class TMMeasurementSystem:
             correlation_weight: Weight for Pearson correlation loss component
             symmetry_weight: Weight for symmetry loss component
             optimize_on_field: If True, optimize using complex field targets instead of S_z
-            field_targets: Complex field targets (M, 2, 4, H, W) or (M, 2, 2, H, W) if only E
+            field_targets: Complex field targets (M, P, 4, H, W) or (M, P, 2, H, W) if only E
             field_component: 'E' to use only electric field (Ex,Ey), 'EH' to use both E and H
+            field_planes: 'image' (default), 'fourier', or 'both'. If optimize_on_field=True, 'image' is recommended.
         Returns:
             Dict containing optimization history and final results
         """
@@ -526,7 +528,7 @@ class TMMeasurementSystem:
         if optimize_on_field:
             if field_targets is None:
                 with torch.no_grad():
-                    field_targets = self.calculate_fields_with_tm(mode_distributions, self.real_tm_tensor)
+                    field_targets = self.calculate_fields_with_tm(mode_distributions, self.real_tm_tensor, planes=field_planes)
             # Optionally select only E or both E and H
             if field_component.upper() == 'E':
                 # Keep only Ex,Ey -> indices 0,1 -> shape (M, 2, 2, H, W)
@@ -565,7 +567,7 @@ class TMMeasurementSystem:
                 else:
                     # Complex field optimization
                     batch_field_targets = field_targets[batch_indices]
-                    batch_field_predictions = self.calculate_fields_with_tm(batch_modes, optimized_tm)
+                    batch_field_predictions = self.calculate_fields_with_tm(batch_modes, optimized_tm, planes=field_planes)
                     if field_component.upper() == 'E':
                         batch_field_predictions = batch_field_predictions[:, :, 0:2]
                     # Complex MSE
@@ -635,19 +637,31 @@ class TMMeasurementSystem:
         tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
         return self.calculate_fields_with_tm(mode_distribution, tm)
 
-    def calculate_fields_with_tm(self, mode_distribution: torch.Tensor, tm: torch.Tensor) -> torch.Tensor:
+    def calculate_fields_with_tm(self, mode_distribution: torch.Tensor, tm: torch.Tensor, planes: str = 'both') -> torch.Tensor:
         """
         Calculate complex fields (Ex,Ey,Hx,Hy) for both planes with a specific TM.
         Args:
             mode_distribution: Tensor of shape (batch_size, N_modes)
             tm: Transmission matrix to use
+            planes: 'both', 'image', or 'fourier'
         Returns:
-            torch.Tensor: (batch_size, 2, 4, H, W)
+            torch.Tensor: (batch_size, P, 4, H, W) where P is number of planes (1 or 2)
         """
         output_modes = torch.einsum('nm,bm->bn', tm, mode_distribution)
         # mode_fields shape: (N_modes, 2, 4, H, W)
-        total_fields = torch.einsum('bn,npfhw->bpfhw', output_modes, self.mode_fields)
-        return total_fields
+        planes_l = planes.lower()
+        if planes_l == 'both':
+            total_fields = torch.einsum('bn,npfhw->bpfhw', output_modes, self.mode_fields)
+            return total_fields
+        elif planes_l == 'image':
+            # Only plane index 0
+            total_single = torch.einsum('bn,nfhw->bfhw', output_modes, self.mode_fields[:, 0])
+            return total_single.unsqueeze(1)
+        elif planes_l == 'fourier':
+            total_single = torch.einsum('bn,nfhw->bfhw', output_modes, self.mode_fields[:, 1])
+            return total_single.unsqueeze(1)
+        else:
+            raise ValueError("planes must be 'both', 'image', or 'fourier'")
     
     def calculate_phase_aligned_tm_error(self) -> Tuple[float, float]:
         """
