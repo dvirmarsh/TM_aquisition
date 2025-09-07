@@ -132,10 +132,28 @@ class CombinedLoss(nn.Module):
         correlation = self.correlation_loss(predictions, targets)
         symmetry = 0.0
         if self.symmetry_weight > 0.0 and tm is not None:
-            # Hermitian symmetry: penalize ||tm - tm.T.conj||_F
+            # Symmetry (reciprocity): penalize ||tm - tm^T||_F
             symmetry = torch.norm(tm - tm.transpose(-2, -1), p='fro') / tm.numel()
         return self.mse_weight * mse + self.correlation_weight * correlation + self.symmetry_weight * symmetry
 
+
+class ComplexMSELoss(nn.Module):
+    """
+    Mean Squared Error for complex tensors: E[ |pred - target|^2 ].
+    """
+    def __init__(self, reduction: str = 'mean'):
+        super(ComplexMSELoss, self).__init__()
+        self.reduction = reduction
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        error = predictions - targets
+        loss = error.real.pow(2) + error.imag.pow(2)
+        if self.reduction == 'mean':
+            return loss.mean()
+        elif self.reduction == 'sum':
+            return loss.sum()
+        else:
+            return loss
 
 def calculate_phase_aligned_frobenius_norm(T1: torch.Tensor, T2: torch.Tensor) -> Tuple[float, float]:
     """
@@ -404,50 +422,55 @@ class TMMeasurementSystem:
         """
         batch_size, N_modes = mode_distribution.shape
         tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
-        output_modes = torch.einsum('nm,bm->bn', tm, mode_distribution)
-        # For both planes
-        S_z_planes = []
-        for plane in range(2):
-            total_fields = torch.einsum('bm,mfhw->bfhw', output_modes, self.mode_fields[:, plane])
-            E_x = total_fields[:, 0]
-            E_y = total_fields[:, 1]
-            H_x = total_fields[:, 2]
-            H_y = total_fields[:, 3]
-            S_z = 0.5 * torch.real(E_x * torch.conj(H_y) - E_y * torch.conj(H_x))
-            S_z_planes.append(S_z)
-        S_z_both = torch.stack(S_z_planes, dim=1)  # (batch, 2, H, W)
+        # Compute total fields for both planes at once: (batch, 2, 4, H, W)
+        total_fields = self.calculate_fields_with_tm(mode_distribution, tm)
+        E_x = total_fields[:, :, 0]
+        E_y = total_fields[:, :, 1]
+        H_x = total_fields[:, :, 2]
+        H_y = total_fields[:, :, 3]
+        S_z_both = 0.5 * torch.real(E_x * torch.conj(H_y) - E_y * torch.conj(H_x))
         return S_z_both
     
-    def sample_measurements(self, num_measurements: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_measurements(self, num_measurements: int, measurement_mode: str = 'sz') -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Sample M mode distributions and calculate S_z for each, for both planes.
+        Sample M mode distributions and calculate measurements for each, for both planes.
         Args:
             num_measurements: Number of measurements to sample
+            measurement_mode: 'sz' for intensity-like S_z, 'field' for complex fields (Ex,Ey,Hx,Hy)
         Returns:
-            Tuple of (mode_distributions, sz_measurements)
+            Tuple of (mode_distributions, measurements)
                 - mode_distributions: (num_measurements, N_modes)
-                - sz_measurements: (num_measurements, 2, H, W)
+                - measurements:
+                    * if 'sz': (num_measurements, 2, H, W)
+                    * if 'field': (num_measurements, 2, 4, H, W)
         """
         print(f"Sampling {num_measurements} measurements...")
         mode_distributions = self.sample_mode_distribution(num_measurements)
-        sz_measurements = self.calculate_sz_with_tm(mode_distributions, self.real_tm_tensor)
-        return mode_distributions, sz_measurements
+        if measurement_mode == 'field':
+            field_measurements = self.calculate_fields_with_tm(mode_distributions, self.real_tm_tensor)
+            return mode_distributions, field_measurements
+        else:
+            sz_measurements = self.calculate_sz_with_tm(mode_distributions, self.real_tm_tensor)
+            return mode_distributions, sz_measurements
     
     def optimize_tm(self, 
                    mode_distributions: torch.Tensor, 
-                   sz_targets: torch.Tensor,
+                   sz_targets: torch.Tensor = None,
                    num_epochs: int = 100,
                    learning_rate: float = 0.01,
                    batch_size: int = 32,
                    use_combined_loss: bool = True,
                    mse_weight: float = 1.0,
                    correlation_weight: float = 0.1,
-                   symmetry_weight: float = 0.0) -> Dict:
+                   symmetry_weight: float = 0.0,
+                   optimize_on_field: bool = False,
+                   field_targets: torch.Tensor = None,
+                   field_component: str = 'E') -> Dict:
         """
         Optimize the transmission matrix to match the target measurements (both planes).
         Args:
             mode_distributions: Pre-sampled mode distributions (M, N_modes)
-            sz_targets: Target S_z measurements (M, 2, H, W)
+            sz_targets: Target S_z measurements (M, 2, H, W) [required if optimize_on_field=False]
             num_epochs: Number of training epochs
             learning_rate: Learning rate for optimization
             batch_size: Batch size for training
@@ -455,6 +478,9 @@ class TMMeasurementSystem:
             mse_weight: Weight for MSE loss component
             correlation_weight: Weight for Pearson correlation loss component
             symmetry_weight: Weight for symmetry loss component
+            optimize_on_field: If True, optimize using complex field targets instead of S_z
+            field_targets: Complex field targets (M, 2, 4, H, W) or (M, 2, 2, H, W) if only E
+            field_component: 'E' to use only electric field (Ex,Ey), 'EH' to use both E and H
         Returns:
             Dict containing optimization history and final results
         """
@@ -469,12 +495,16 @@ class TMMeasurementSystem:
             min_lr=1e-4,
             threshold=1e-2
         )
-        if use_combined_loss:
-            criterion = CombinedLoss(mse_weight=mse_weight, correlation_weight=correlation_weight, symmetry_weight=symmetry_weight)
-            print(f"Using combined loss (MSE weight: {mse_weight}, Correlation weight: {correlation_weight}, Symmetry weight: {symmetry_weight})")
+        if not optimize_on_field:
+            if use_combined_loss:
+                criterion = CombinedLoss(mse_weight=mse_weight, correlation_weight=correlation_weight, symmetry_weight=symmetry_weight)
+                print(f"Using combined loss (MSE weight: {mse_weight}, Correlation weight: {correlation_weight}, Symmetry weight: {symmetry_weight})")
+            else:
+                criterion = nn.MSELoss()
+                print("Using MSE loss only")
         else:
-            criterion = nn.MSELoss()
-            print("Using MSE loss only")
+            complex_mse = ComplexMSELoss()
+            print("Optimizing on complex field distribution using Complex MSE loss")
         history = {
             'epoch_losses': [],
             'mse_losses': [],
@@ -491,6 +521,21 @@ class TMMeasurementSystem:
         print(f"Total measurements: {num_measurements}")
         print(f"Batch size: {batch_size}")
         print(f"Batches per epoch: {num_batches_per_epoch}")
+
+        # Prepare targets for field optimization if needed
+        if optimize_on_field:
+            if field_targets is None:
+                with torch.no_grad():
+                    field_targets = self.calculate_fields_with_tm(mode_distributions, self.real_tm_tensor)
+            # Optionally select only E or both E and H
+            if field_component.upper() == 'E':
+                # Keep only Ex,Ey -> indices 0,1 -> shape (M, 2, 2, H, W)
+                field_targets = field_targets[:, :, 0:2]
+            elif field_component.upper() == 'EH':
+                pass
+            else:
+                raise ValueError("field_component must be 'E' or 'EH'")
+
         for epoch in range(num_epochs):
             epoch_loss = 0.0
             mse_losses = []
@@ -503,32 +548,51 @@ class TMMeasurementSystem:
                 end_idx = min(start_idx + batch_size, num_measurements)
                 batch_indices = indices[start_idx:end_idx]
                 batch_modes = mode_distributions[batch_indices]
-                batch_targets = sz_targets[batch_indices]  # (batch, 2, H, W)
-                batch_predictions = self.calculate_sz_with_tm(batch_modes, optimized_tm)  # (batch, 2, H, W)
-                # Compute loss over both planes (sum or mean over plane axis)
-                if use_combined_loss:
-                    mse_loss = nn.MSELoss()(batch_predictions*1e5, batch_targets*1e5)
-                    correlation_loss = PearsonCorrelationLoss()(batch_predictions*1e5, batch_targets*1e5)
-                    symmetry_loss = torch.norm(optimized_tm - optimized_tm.transpose(-2, -1), p='fro') if symmetry_weight > 0.0 else 0.0
-                    loss = mse_weight * mse_loss + correlation_weight * correlation_loss + symmetry_weight * symmetry_loss
-                    mse_losses.append(mse_loss.item())
-                    correlation_losses.append(correlation_loss.item())
-                    symmetry_losses.append(symmetry_loss.item() if isinstance(symmetry_loss, torch.Tensor) else symmetry_loss)
+                if not optimize_on_field:
+                    batch_targets_sz = sz_targets[batch_indices]  # (batch, 2, H, W)
+                    batch_predictions_sz = self.calculate_sz_with_tm(batch_modes, optimized_tm)  # (batch, 2, H, W)
+                    # Compute loss over both planes (sum or mean over plane axis)
+                    if use_combined_loss:
+                        mse_loss = nn.MSELoss()(batch_predictions_sz*1e5, batch_targets_sz*1e5)
+                        correlation_loss = PearsonCorrelationLoss()(batch_predictions_sz*1e5, batch_targets_sz*1e5)
+                        symmetry_loss = torch.norm(optimized_tm - optimized_tm.transpose(-2, -1), p='fro') if symmetry_weight > 0.0 else 0.0
+                        loss = mse_weight * mse_loss + correlation_weight * correlation_loss + symmetry_weight * symmetry_loss
+                        mse_losses.append(mse_loss.item())
+                        correlation_losses.append(correlation_loss.item())
+                        symmetry_losses.append(symmetry_loss.item() if isinstance(symmetry_loss, torch.Tensor) else symmetry_loss)
+                    else:
+                        loss = criterion(batch_predictions_sz*1e5, batch_targets_sz*1e5)
                 else:
-                    loss = criterion(batch_predictions*1e5, batch_targets*1e5)
+                    # Complex field optimization
+                    batch_field_targets = field_targets[batch_indices]
+                    batch_field_predictions = self.calculate_fields_with_tm(batch_modes, optimized_tm)
+                    if field_component.upper() == 'E':
+                        batch_field_predictions = batch_field_predictions[:, :, 0:2]
+                    # Complex MSE
+                    mse_loss = complex_mse(batch_field_predictions, batch_field_targets)
+                    symmetry_loss = torch.norm(optimized_tm - optimized_tm.transpose(-2, -1), p='fro') if symmetry_weight > 0.0 else 0.0
+                    loss = mse_loss + symmetry_weight * symmetry_loss
+                    mse_losses.append(mse_loss.item())
+                    if symmetry_weight > 0.0:
+                        symmetry_losses.append(symmetry_loss.item() if isinstance(symmetry_loss, torch.Tensor) else symmetry_loss)
                 loss.backward()
                 optimizer.step()
                 epoch_loss += loss.item()
             avg_epoch_loss = epoch_loss / num_batches_per_epoch
             history['epoch_losses'].append(avg_epoch_loss)
             history['tm_norm'].append(torch.norm(optimized_tm).item())
-            if use_combined_loss:
+            if not optimize_on_field and use_combined_loss:
                 avg_mse_loss = sum(mse_losses) / len(mse_losses) if mse_losses else 0
                 avg_correlation_loss = sum(correlation_losses) / len(correlation_losses) if correlation_losses else 0
                 avg_symmetry_loss = sum(symmetry_losses) / len(symmetry_losses) if symmetry_losses else 0
                 history['mse_losses'].append(avg_mse_loss)
                 history['correlation_losses'].append(avg_correlation_loss)
                 history['symmetry_losses'].append(avg_symmetry_loss)
+            else:
+                if mse_losses:
+                    history['mse_losses'].append(sum(mse_losses) / len(mse_losses))
+                if symmetry_losses:
+                    history['symmetry_losses'].append(sum(symmetry_losses) / len(symmetry_losses))
             tm_error = torch.norm(self.real_tm_tensor - optimized_tm, 'fro').item()
             tm_error_aligned, _ = calculate_phase_aligned_frobenius_norm(self.real_tm_tensor, optimized_tm)
             history['tm_frobenius_error'].append(tm_error)
@@ -550,18 +614,40 @@ class TMMeasurementSystem:
             torch.Tensor: S_z of shape (batch_size, 2, H, W)
         """
         batch_size, N_modes = mode_distribution.shape
-        output_modes = torch.einsum('nm,bm->bn', tm, mode_distribution)
-        S_z_planes = []
-        for plane in range(2):
-            total_fields = torch.einsum('bm,mfhw->bfhw', output_modes, self.mode_fields[:, plane])
-            E_x = total_fields[:, 0]
-            E_y = total_fields[:, 1]
-            H_x = total_fields[:, 2]
-            H_y = total_fields[:, 3]
-            S_z = 0.5 * torch.real(E_x * torch.conj(H_y) - E_y * torch.conj(H_x))
-            S_z_planes.append(S_z)
-        S_z_both = torch.stack(S_z_planes, dim=1)
+        # Total fields for both planes at once: (batch, 2, 4, H, W)
+        total_fields = self.calculate_fields_with_tm(mode_distribution, tm)
+        E_x = total_fields[:, :, 0]
+        E_y = total_fields[:, :, 1]
+        H_x = total_fields[:, :, 2]
+        H_y = total_fields[:, :, 3]
+        S_z_both = 0.5 * torch.real(E_x * torch.conj(H_y) - E_y * torch.conj(H_x))
         return S_z_both
+
+    def calculate_fields(self, mode_distribution: torch.Tensor, use_real_tm: bool = True) -> torch.Tensor:
+        """
+        Calculate complex fields (Ex,Ey,Hx,Hy) for both planes.
+        Args:
+            mode_distribution: Tensor of shape (batch_size, N_modes)
+            use_real_tm: If True, use real TM; if False, use optimized TM
+        Returns:
+            torch.Tensor: (batch_size, 2, 4, H, W)
+        """
+        tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
+        return self.calculate_fields_with_tm(mode_distribution, tm)
+
+    def calculate_fields_with_tm(self, mode_distribution: torch.Tensor, tm: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate complex fields (Ex,Ey,Hx,Hy) for both planes with a specific TM.
+        Args:
+            mode_distribution: Tensor of shape (batch_size, N_modes)
+            tm: Transmission matrix to use
+        Returns:
+            torch.Tensor: (batch_size, 2, 4, H, W)
+        """
+        output_modes = torch.einsum('nm,bm->bn', tm, mode_distribution)
+        # mode_fields shape: (N_modes, 2, 4, H, W)
+        total_fields = torch.einsum('bn,npfhw->bpfhw', output_modes, self.mode_fields)
+        return total_fields
     
     def calculate_phase_aligned_tm_error(self) -> Tuple[float, float]:
         """
