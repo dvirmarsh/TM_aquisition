@@ -768,6 +768,19 @@ class TMMeasurementSystem:
         Args:
             history: Training history from optimize_tm()
         """
+        mse_losses = history.get('mse_losses') or []
+        correlation_losses = history.get('correlation_losses') or []
+        symmetry_losses = history.get('symmetry_losses') or []
+        tm_frobenius_error = history.get('tm_frobenius_error') or []
+        tm_frobenius_error_aligned = history.get('tm_frobenius_error_aligned') or []
+        learning_rates = history.get('learning_rates') or []
+        has_correlation = len(correlation_losses) > 0
+        has_mse = len(mse_losses) > 0
+        has_symmetry = len(symmetry_losses) > 0
+        has_tm_error = len(tm_frobenius_error) > 0
+        has_tm_error_aligned = len(tm_frobenius_error_aligned) > 0
+        has_learning_rates = len(learning_rates) > 0
+        
         fig, axes = plt.subplots(3, 2, figsize=(15, 15))
         
         # Plot total loss
@@ -779,15 +792,19 @@ class TMMeasurementSystem:
         axes[0, 0].set_yscale('log')  # Log scale for better visualization
         
         # Plot MSE and correlation losses separately if available
-        if 'mse_losses' in history and 'correlation_losses' in history:
-            axes[0, 1].plot(history['mse_losses'], 'r-', label='MSE Loss', linewidth=2, marker='s', markersize=4)
-            axes[0, 1].plot(history['correlation_losses'], 'g-', label='Correlation Loss', linewidth=2, marker='^', markersize=4)
+        if has_mse or has_correlation:
+            if has_mse:
+                axes[0, 1].plot(mse_losses, 'r-', label='MSE Loss', linewidth=2, marker='s', markersize=4)
+            if has_correlation:
+                axes[0, 1].plot(correlation_losses, 'g-', label='Correlation Loss', linewidth=2, marker='^', markersize=4)
             axes[0, 1].set_xlabel('Epoch')
             axes[0, 1].set_ylabel('Loss')
             axes[0, 1].set_title('Loss Components vs Epoch')
             axes[0, 1].legend()
             axes[0, 1].grid(True, alpha=0.3)
             axes[0, 1].set_yscale('log')
+        else:
+            axes[0, 1].axis('off')
         
         # Plot TM norm
         axes[1, 0].plot(history['tm_norm'], 'purple', linewidth=2, marker='d', markersize=4)
@@ -797,10 +814,10 @@ class TMMeasurementSystem:
         axes[1, 0].grid(True, alpha=0.3)
         
         # Plot TM Frobenius error
-        if 'tm_frobenius_error' in history:
-            axes[1, 1].plot(history['tm_frobenius_error'], 'red', linewidth=2, marker='s', markersize=4, label='Regular')
-            if 'tm_frobenius_error_aligned' in history:
-                axes[1, 1].plot(history['tm_frobenius_error_aligned'], 'blue', linewidth=2, marker='^', markersize=4, label='Phase-Aligned')
+        if has_tm_error:
+            axes[1, 1].plot(tm_frobenius_error, 'red', linewidth=2, marker='s', markersize=4, label='Regular')
+            if has_tm_error_aligned:
+                axes[1, 1].plot(tm_frobenius_error_aligned, 'blue', linewidth=2, marker='^', markersize=4, label='Phase-Aligned')
             axes[1, 1].set_xlabel('Epoch')
             axes[1, 1].set_ylabel('TM Frobenius Error')
             axes[1, 1].set_title('TM Reconstruction Error vs Epoch')
@@ -816,8 +833,8 @@ class TMMeasurementSystem:
             axes[1, 1].grid(True, alpha=0.3)
         
         # Plot learning rate
-        if 'learning_rates' in history:
-            axes[2, 0].plot(history['learning_rates'], 'orange', linewidth=2, marker='*', markersize=6)
+        if has_learning_rates:
+            axes[2, 0].plot(learning_rates, 'orange', linewidth=2, marker='*', markersize=6)
             axes[2, 0].set_xlabel('Epoch')
             axes[2, 0].set_ylabel('Learning Rate')
             axes[2, 0].set_title('Learning Rate vs Epoch')
@@ -836,24 +853,25 @@ class TMMeasurementSystem:
         print(f"Final Loss: {history['epoch_losses'][-1]:.6f}")
         print(f"Loss Reduction: {history['epoch_losses'][0]/history['epoch_losses'][-1]:.2f}x")
         
-        if 'mse_losses' in history and 'correlation_losses' in history:
-            print(f"Initial MSE Loss: {history['mse_losses'][0]:.6f}")
-            print(f"Final MSE Loss: {history['mse_losses'][-1]:.6f}")
-            print(f"Initial Correlation Loss: {history['correlation_losses'][0]:.6f}")
-            print(f"Final Correlation Loss: {history['correlation_losses'][-1]:.6f}")
+        if has_mse:
+            print(f"Initial MSE Loss: {mse_losses[0]:.6f}")
+            print(f"Final MSE Loss: {mse_losses[-1]:.6f}")
+        if has_correlation:
+            print(f"Initial Correlation Loss: {correlation_losses[0]:.6f}")
+            print(f"Final Correlation Loss: {correlation_losses[-1]:.6f}")
         
         print(f"Initial TM Norm: {history['tm_norm'][0]:.6f}")
         print(f"Final TM Norm: {history['tm_norm'][-1]:.6f}")
         
-        if 'tm_frobenius_error' in history:
-            print(f"Initial TM Frobenius Error: {history['tm_frobenius_error'][0]:.6f}")
-            print(f"Final TM Frobenius Error: {history['tm_frobenius_error'][-1]:.6f}")
-            print(f"TM Error Reduction: {history['tm_frobenius_error'][0]/history['tm_frobenius_error'][-1]:.2f}x")
+        if has_tm_error:
+            print(f"Initial TM Frobenius Error: {tm_frobenius_error[0]:.6f}")
+            print(f"Final TM Frobenius Error: {tm_frobenius_error[-1]:.6f}")
+            print(f"TM Error Reduction: {tm_frobenius_error[0]/tm_frobenius_error[-1]:.2f}x")
             
-            if 'tm_frobenius_error_aligned' in history:
-                print(f"Initial TM Error (Phase-Aligned): {history['tm_frobenius_error_aligned'][0]:.6f}")
-                print(f"Final TM Error (Phase-Aligned): {history['tm_frobenius_error_aligned'][-1]:.6f}")
-                print(f"TM Error Reduction (Phase-Aligned): {history['tm_frobenius_error_aligned'][0]/history['tm_frobenius_error_aligned'][-1]:.2f}x")
+            if has_tm_error_aligned:
+                print(f"Initial TM Error (Phase-Aligned): {tm_frobenius_error_aligned[0]:.6f}")
+                print(f"Final TM Error (Phase-Aligned): {tm_frobenius_error_aligned[-1]:.6f}")
+                print(f"TM Error Reduction (Phase-Aligned): {tm_frobenius_error_aligned[0]/tm_frobenius_error_aligned[-1]:.2f}x")
         
         print("=" * 35)
 
@@ -899,7 +917,7 @@ def main():
     
     # Sample measurements
     print("\nSampling measurements...")
-    mode_distributions, sz_measurements = tm_system.sample_measurements(num_measurements=4000)
+    mode_distributions, sz_measurements = tm_system.sample_measurements(num_measurements=2000)
     
     # Optimize TM
     print("\nOptimizing transmission matrix...")
@@ -907,12 +925,14 @@ def main():
         mode_distributions=mode_distributions,
         sz_targets=sz_measurements,
         num_epochs=200,
-        learning_rate=0.00001,
+        learning_rate=0.001,
         batch_size=128,
         use_combined_loss=True,
         mse_weight=5.0,
         correlation_weight=0.0,
-        symmetry_weight=1.0
+        symmetry_weight=1.0,
+        optimize_on_field=True,
+        field_planes='image'
     )
     
     # Evaluate results
