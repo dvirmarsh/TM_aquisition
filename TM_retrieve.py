@@ -35,125 +35,6 @@ def fourier_plane(x: torch.Tensor, N_pad: int, mult_factor: float) -> torch.Tens
     fourier_plane = fourier_plane * torch.exp(1j * phase_factor * (x_ + y))
     return fourier_plane * mult_factor
 
-class PearsonCorrelationLoss(nn.Module):
-    """
-    Pearson correlation loss for measuring correlation between predicted and target values.
-    
-    This loss function measures the negative correlation between predictions and targets,
-    encouraging the model to learn the relative patterns rather than just absolute values.
-    """
-    
-    def __init__(self, reduction: str = 'mean'):
-        """
-        Initialize Pearson correlation loss.
-        
-        Args:
-            reduction: Reduction method ('mean', 'sum', 'none')
-        """
-        super(PearsonCorrelationLoss, self).__init__()
-        self.reduction = reduction
-    
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        """
-        Calculate Pearson correlation loss.
-        
-        Args:
-            predictions: Predicted values (B, 2, H, W) or (B, H, W)
-            targets: Target values (B, 2, H, W) or (B, H, W)
-            
-        Returns:
-            Loss value (negative correlation)
-        """
-        # Flatten tensors for correlation calculation
-        if predictions.dim() == 4:
-            B, P, H, W = predictions.shape
-            pred_flat = predictions.view(B * P, -1)
-            target_flat = targets.view(B * P, -1)
-        else:
-            pred_flat = predictions.view(predictions.size(0), -1)
-            target_flat = targets.view(targets.size(0), -1)
-        # Calculate means
-        pred_mean = torch.mean(pred_flat, dim=1, keepdim=True)
-        target_mean = torch.mean(target_flat, dim=1, keepdim=True)
-        # Center the data
-        pred_centered = pred_flat - pred_mean
-        target_centered = target_flat - target_mean
-        # Calculate correlation
-        numerator = torch.sum(pred_centered * target_centered, dim=1)
-        pred_var = torch.sum(pred_centered ** 2, dim=1)
-        target_var = torch.sum(target_centered ** 2, dim=1)
-        denominator = torch.sqrt(pred_var * target_var + 1e-8)  # Add small epsilon for numerical stability
-        # Calculate correlation coefficient
-        correlation = numerator / denominator
-        # Return negative correlation as loss (we want to maximize correlation)
-        loss = 1 - correlation
-        # Apply reduction
-        if self.reduction == 'mean':
-            return torch.mean(loss)
-        elif self.reduction == 'sum':
-            return torch.sum(loss)
-        else:
-            return loss
-
-
-class CombinedLoss(nn.Module):
-    """
-    Combined loss function that combines MSE, Pearson correlation loss, and symmetry loss.
-    """
-    
-    def __init__(self, mse_weight: float = 1.0, correlation_weight: float = 0.1, symmetry_weight: float = 0.0):
-        """
-        Initialize combined loss.
-        
-        Args:
-            mse_weight: Weight for MSE loss
-            correlation_weight: Weight for Pearson correlation loss
-            symmetry_weight: Weight for symmetry loss
-        """
-        super(CombinedLoss, self).__init__()
-        self.mse_weight = mse_weight
-        self.correlation_weight = correlation_weight
-        self.symmetry_weight = symmetry_weight
-        self.mse_loss = nn.MSELoss()
-        self.correlation_loss = PearsonCorrelationLoss()
-    
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor, tm: torch.Tensor = None) -> torch.Tensor:
-        """
-        Calculate combined loss.
-        
-        Args:
-            predictions: Predicted values
-            targets: Target values
-            tm: Transmission matrix (for symmetry loss)
-        Returns:
-            Combined loss value
-        """
-        mse = self.mse_loss(predictions*1e5, targets*1e5)
-        correlation = self.correlation_loss(predictions, targets)
-        symmetry = 0.0
-        if self.symmetry_weight > 0.0 and tm is not None:
-            # Symmetry (reciprocity): penalize ||tm - tm^T||_F
-            symmetry = torch.norm(tm - tm.transpose(-2, -1), p='fro') / tm.numel()
-        return self.mse_weight * mse + self.correlation_weight * correlation + self.symmetry_weight * symmetry
-
-
-class ComplexMSELoss(nn.Module):
-    """
-    Mean Squared Error for complex tensors: E[ |pred - target|^2 ].
-    """
-    def __init__(self, reduction: str = 'mean'):
-        super(ComplexMSELoss, self).__init__()
-        self.reduction = reduction
-
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        error = predictions - targets
-        loss = error.real.pow(2) + error.imag.pow(2)
-        if self.reduction == 'mean':
-            return loss.mean()
-        elif self.reduction == 'sum':
-            return loss.sum()
-        else:
-            return loss
 
 def calculate_phase_aligned_frobenius_norm(T1: torch.Tensor, T2: torch.Tensor) -> Tuple[float, float]:
     """
@@ -193,7 +74,7 @@ class TMMeasurementSystem:
     This class manages:
     - Guided mode calculations and storage
     - Real and optimized TM sampling
-    - Poynting vector calculations
+    - Intensity calculations (I = |E_x|^2 + |E_y|^2)
     - Mode distribution sampling
     """
     
@@ -281,16 +162,17 @@ class TMMeasurementSystem:
     
     def _calculate_mode_fields(self) -> torch.Tensor:
         """
-        Calculate and store mode field components needed for S_z calculation in both image and Fourier planes.
+        Calculate and store mode field components needed for intensity calculation in both image and Fourier planes.
         
         Returns:
-            torch.Tensor: Tensor of shape (N_modes, 2, 4, H, W) containing
-                         (E_x, E_y, H_x, H_y) for each mode, for both image and Fourier planes
+            torch.Tensor: Tensor of shape (2, 2, H, W, N_modes) containing
+                         (E_x, E_y) for each plane, with the last dim indexing modes
         """
         N_modes = len(self.guided_modes)
         H, W = self.X.shape
         # 2: [0]=image plane, [1]=fourier plane
-        mode_fields = torch.zeros((N_modes, 2, 4, H, W), dtype=torch.complex64, device=self.device)
+        # 2: [0]=E_x, [1]=E_y
+        mode_fields = torch.zeros((2, 2, H, W, N_modes), dtype=torch.complex64, device=self.device)
         for i, mode in tqdm(enumerate(self.guided_modes), total=N_modes, desc="Calculating mode fields"):
             fields = calculate_wave_distribution(mode, self.fiber_params, self.X, self.Y)
             r = np.sqrt(self.X**2 + self.Y**2)
@@ -299,25 +181,16 @@ class TMMeasurementSystem:
             E_theta = fields['E_theta']
             E_x = E_r * np.cos(theta) - E_theta * np.sin(theta)
             E_y = E_r * np.sin(theta) + E_theta * np.cos(theta)
-            H_r = fields['Hr']
-            H_theta = fields['H_theta']
-            H_x = H_r * np.cos(theta) - H_theta * np.sin(theta)
-            H_y = H_r * np.sin(theta) + H_theta * np.cos(theta)
-            P_tot = np.sum(0.5 * np.real(E_x * np.conj(H_y) - E_y * np.conj(H_x)))
-            E_x = torch.tensor(E_x / np.sqrt(P_tot), dtype=torch.complex64, device=self.device)
-            E_y = torch.tensor(E_y / np.sqrt(P_tot), dtype=torch.complex64, device=self.device)
-            H_x = torch.tensor(H_x / np.sqrt(P_tot), dtype=torch.complex64, device=self.device)
-            H_y = torch.tensor(H_y / np.sqrt(P_tot), dtype=torch.complex64, device=self.device)
+            # Normalize using intensity I = |E_x|^2 + |E_y|^2
+            I_tot = np.sum(np.abs(E_x)**2 + np.abs(E_y)**2)
+            E_x = torch.tensor(E_x / np.sqrt(I_tot), dtype=torch.complex64, device=self.device)
+            E_y = torch.tensor(E_y / np.sqrt(I_tot), dtype=torch.complex64, device=self.device)
             # Image plane fields
-            mode_fields[i, 0, 0] = E_x
-            mode_fields[i, 0, 1] = E_y
-            mode_fields[i, 0, 2] = H_x
-            mode_fields[i, 0, 3] = H_y
+            mode_fields[0, 0, :, :, i] = E_x
+            mode_fields[0, 1, :, :, i] = E_y
             # Fourier plane fields (use self.N_pad and self.mult_factor)
-            mode_fields[i, 1, 0] = fourier_plane(E_x, self.N_pad, self.mult_factor)
-            mode_fields[i, 1, 1] = fourier_plane(E_y, self.N_pad, self.mult_factor)
-            mode_fields[i, 1, 2] = fourier_plane(H_x, self.N_pad, self.mult_factor)
-            mode_fields[i, 1, 3] = fourier_plane(H_y, self.N_pad, self.mult_factor)
+            mode_fields[1, 0, :, :, i] = fourier_plane(E_x, self.N_pad, self.mult_factor)
+            mode_fields[1, 1, :, :, i] = fourier_plane(E_y, self.N_pad, self.mult_factor)
         return mode_fields
     
     def _get_mode_fields_filename(self) -> str:
@@ -346,6 +219,25 @@ class TMMeasurementSystem:
             print(f"Loading mode_fields from {filename}...")
             try:
                 mode_fields = torch.load(filename, map_location=self.device)
+                expected_modes = len(self.guided_modes)
+                if mode_fields.dim() == 5 and mode_fields.shape[-1] != expected_modes:
+                    # Legacy layout: (N_modes, 2, 4, H, W) or (N_modes, 2, 2, H, W) -> convert to (2, 2, H, W, N_modes)
+                    if mode_fields.shape[0] == expected_modes:
+                        mode_fields = mode_fields.permute(1, 2, 3, 4, 0).contiguous()
+                        # If old format had 4 components, extract only E_x, E_y (indices 0, 1)
+                        if mode_fields.shape[1] == 4:
+                            mode_fields = mode_fields[:, 0:2, :, :, :]
+                            print("Converted legacy mode_fields layout (4 components) to new format (2,2,H,W,N_modes) - keeping only E_x, E_y.")
+                        else:
+                            print("Converted legacy mode_fields layout to new format (2,2,H,W,N_modes).")
+                    else:
+                        raise ValueError(
+                            f"Incompatible mode_fields shape {mode_fields.shape} for {expected_modes} modes."
+                        )
+                # Also handle old format with 4 components in the correct shape
+                if mode_fields.dim() == 5 and mode_fields.shape[1] == 4:
+                    mode_fields = mode_fields[:, 0:2, :, :, :]
+                    print("Extracted E_x, E_y from old 4-component format.")
                 print(f"Successfully loaded mode_fields with shape: {mode_fields.shape}")
                 return mode_fields
             except Exception as e:
@@ -397,52 +289,51 @@ class TMMeasurementSystem:
             batch_size: Number of mode distributions to sample
             
         Returns:
-            torch.Tensor: Complex tensor of shape (batch_size, N_modes) 
+            torch.Tensor: Complex tensor of shape (N_modes, batch_size) 
                          representing mode amplitudes
         """
         N_modes = len(self.guided_modes)
         
-        # Sample complex Gaussian random amplitudes
-        real_part = torch.randn(batch_size, N_modes, device=self.device)
-        imag_part = torch.randn(batch_size, N_modes, device=self.device)
+        # Sample complex Gaussian random amplitudes with columns as independent distributions
+        real_part = torch.randn(N_modes, batch_size, device=self.device)
+        imag_part = torch.randn(N_modes, batch_size, device=self.device)
         
-        # Normalize to unit power
-        amplitudes = (real_part + 1j * imag_part) / torch.sqrt(torch.sum(real_part**2 + imag_part**2, dim=1, keepdim=True))
+        # Normalize each column to unit power
+        power = torch.sum(real_part**2 + imag_part**2, dim=0, keepdim=True)
+        amplitudes = (real_part + 1j * imag_part) / torch.sqrt(power)
         
         return amplitudes
     
-    def calculate_sz(self, mode_distribution: torch.Tensor, use_real_tm: bool = True) -> torch.Tensor:
+    def calculate_intensity(self, mode_distribution: torch.Tensor, use_real_tm: bool = True) -> torch.Tensor:
         """
-        Calculate the Poynting vector in the Z direction for both image and Fourier planes.
+        Calculate the intensity I = |E_x|^2 + |E_y|^2 for both image and Fourier planes.
         Args:
-            mode_distribution: Tensor of shape (batch_size, N_modes) 
+            mode_distribution: Tensor of shape (N_modes, batch_size) 
             use_real_tm: If True, use real TM; if False, use optimized TM
         Returns:
-            torch.Tensor: S_z of shape (batch_size, 2, H, W) [2: image, fourier]
+            torch.Tensor: Intensity of shape (batch_size, 2, H, W) [2: image, fourier]
         """
-        batch_size, N_modes = mode_distribution.shape
+        N_modes, batch_size = mode_distribution.shape
         tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
-        # Compute total fields for both planes at once: (batch, 2, 4, H, W)
+        # Compute total fields for both planes at once: (batch, 2, 2, H, W) [E_x, E_y]
         total_fields = self.calculate_fields_with_tm(mode_distribution, tm)
         E_x = total_fields[:, :, 0]
         E_y = total_fields[:, :, 1]
-        H_x = total_fields[:, :, 2]
-        H_y = total_fields[:, :, 3]
-        S_z_both = 0.5 * torch.real(E_x * torch.conj(H_y) - E_y * torch.conj(H_x))
-        return S_z_both
+        I_both = torch.abs(E_x)**2 + torch.abs(E_y)**2
+        return I_both
     
-    def sample_measurements(self, num_measurements: int, measurement_mode: str = 'sz') -> Tuple[torch.Tensor, torch.Tensor]:
+    def sample_measurements(self, num_measurements: int, measurement_mode: str = 'intensity') -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Sample M mode distributions and calculate measurements for each, for both planes.
         Args:
             num_measurements: Number of measurements to sample
-            measurement_mode: 'sz' for intensity-like S_z, 'field' for complex fields (Ex,Ey,Hx,Hy)
+            measurement_mode: 'intensity' for I = |E_x|^2 + |E_y|^2, 'field' for complex fields (E_x, E_y)
         Returns:
             Tuple of (mode_distributions, measurements)
-                - mode_distributions: (num_measurements, N_modes)
+                - mode_distributions: (N_modes, num_measurements)
                 - measurements:
-                    * if 'sz': (num_measurements, 2, H, W)
-                    * if 'field': (num_measurements, 2, 4, H, W)
+                    * if 'intensity': (num_measurements, 2, H, W)
+                    * if 'field': (num_measurements, 2, 2, H, W)
         """
         print(f"Sampling {num_measurements} measurements...")
         mode_distributions = self.sample_mode_distribution(num_measurements)
@@ -450,218 +341,194 @@ class TMMeasurementSystem:
             field_measurements = self.calculate_fields_with_tm(mode_distributions, self.real_tm_tensor)
             return mode_distributions, field_measurements
         else:
-            sz_measurements = self.calculate_sz_with_tm(mode_distributions, self.real_tm_tensor)
-            return mode_distributions, sz_measurements
+            intensity_measurements = self.calculate_intensity_with_tm(mode_distributions, self.real_tm_tensor)
+            return mode_distributions, intensity_measurements
     
     def optimize_tm(self, 
                    mode_distributions: torch.Tensor, 
-                   sz_targets: torch.Tensor = None,
+                   intensity_targets: torch.Tensor = None,
                    num_epochs: int = 100,
                    learning_rate: float = 0.01,
                    batch_size: int = 32,
-                   use_combined_loss: bool = True,
-                   mse_weight: float = 1.0,
-                   correlation_weight: float = 0.1,
-                   symmetry_weight: float = 0.0,
-                   optimize_on_field: bool = False,
-                   field_targets: torch.Tensor = None,
-                   field_component: str = 'E',
-                   field_planes: str = 'image') -> Dict:
+                   planes: str = 'both') -> Dict:
         """
-        Optimize the transmission matrix to match the target measurements (both planes).
+        Optimize the transmission matrix to match the target measurements.
         Args:
-            mode_distributions: Pre-sampled mode distributions (M, N_modes)
-            sz_targets: Target S_z measurements (M, 2, H, W) [required if optimize_on_field=False]
+            mode_distributions: Pre-sampled mode distributions (N_modes, M)
+            intensity_targets: Target intensity measurements I = |E_x|^2 + |E_y|^2 (M, 2, H, W)
             num_epochs: Number of training epochs
-            learning_rate: Learning rate for optimization
+            learning_rate: Learning rate for optimization (not used by LBFGS, kept for compatibility)
             batch_size: Batch size for training
-            use_combined_loss: Whether to use combined MSE + correlation loss
-            mse_weight: Weight for MSE loss component
-            correlation_weight: Weight for Pearson correlation loss component
-            symmetry_weight: Weight for symmetry loss component
-            optimize_on_field: If True, optimize using complex field targets instead of S_z
-            field_targets: Complex field targets (M, P, 4, H, W) or (M, P, 2, H, W) if only E
-            field_component: 'E' to use only electric field (Ex,Ey), 'EH' to use both E and H
-            field_planes: 'image' (default), 'fourier', or 'both'. If optimize_on_field=True, 'image' is recommended.
+            planes: 'both', 'image', or 'fourier' - which plane(s) to optimize on
         Returns:
             Dict containing optimization history and final results
         """
         print("Starting TM optimization...")
         optimized_tm = nn.Parameter(self.optimized_tm_tensor.clone())
-        optimizer = optim.Adam([optimized_tm], lr=learning_rate)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, 
-            mode='min', 
-            factor=0.5, 
-            patience=3,
-            min_lr=1e-4,
-            threshold=1e-2
-        )
-        if not optimize_on_field:
-            if use_combined_loss:
-                criterion = CombinedLoss(mse_weight=mse_weight, correlation_weight=correlation_weight, symmetry_weight=symmetry_weight)
-                print(f"Using combined loss (MSE weight: {mse_weight}, Correlation weight: {correlation_weight}, Symmetry weight: {symmetry_weight})")
-            else:
-                criterion = nn.MSELoss()
-                print("Using MSE loss only")
-        else:
-            complex_mse = ComplexMSELoss()
-            print("Optimizing on complex field distribution using Complex MSE loss")
+        
+        # Use LBFGS optimizer
+        optimizer = optim.LBFGS([optimized_tm], lr=1, max_iter=20, history_size=10, 
+                                 line_search_fn="strong_wolfe")
+        print(f"Using LBFGS optimizer with MSE loss")
+        
+        # MSE loss criterion
+        criterion = nn.MSELoss()
+        
+        # Validate and set plane selection
+        planes_l = planes.lower()
+        if planes_l not in ['both', 'image', 'fourier']:
+            raise ValueError("planes must be 'both', 'image', or 'fourier'")
+        print(f"Optimizing on {planes_l} plane(s)")
+        
         history = {
             'epoch_losses': [],
             'mse_losses': [],
-            'correlation_losses': [],
-            'symmetry_losses': [],
             'tm_norm': [],
-            'tm_frobenius_error': [],
             'tm_frobenius_error_aligned': [],
             'learning_rates': []
         }
-        num_measurements = mode_distributions.shape[0]
+        num_measurements = mode_distributions.shape[1]
         num_batches_per_epoch = (num_measurements + batch_size - 1) // batch_size
         print(f"Training for {num_epochs} epochs")
         print(f"Total measurements: {num_measurements}")
         print(f"Batch size: {batch_size}")
         print(f"Batches per epoch: {num_batches_per_epoch}")
 
-        # Prepare targets for field optimization if needed
-        if optimize_on_field:
-            if field_targets is None:
-                with torch.no_grad():
-                    field_targets = self.calculate_fields_with_tm(mode_distributions, self.real_tm_tensor, planes=field_planes)
-            # Optionally select only E or both E and H
-            if field_component.upper() == 'E':
-                # Keep only Ex,Ey -> indices 0,1 -> shape (M, 2, 2, H, W)
-                field_targets = field_targets[:, :, 0:2]
-            elif field_component.upper() == 'EH':
-                pass
-            else:
-                raise ValueError("field_component must be 'E' or 'EH'")
-
         for epoch in range(num_epochs):
-            epoch_loss = 0.0
-            mse_losses = []
-            correlation_losses = []
-            symmetry_losses = []
             indices = torch.randperm(num_measurements)
-            for batch_idx in range(num_batches_per_epoch):
+            
+            # LBFGS requires processing all data in one closure
+            def closure():
                 optimizer.zero_grad()
-                start_idx = batch_idx * batch_size
+                total_loss = 0.0
+                batch_count = 0
+                
+                # Process all batches
+                for batch_idx in range(num_batches_per_epoch):
+                    start_idx = batch_idx * batch_size
+                    end_idx = min(start_idx + batch_size, num_measurements)
+                    batch_indices = indices[start_idx:end_idx]
+                    batch_modes = mode_distributions[:, batch_indices]
+                    batch_targets_intensity = intensity_targets[batch_indices]  # (batch, 2, H, W)
+                    batch_predictions_intensity = self.calculate_intensity_with_tm(batch_modes, optimized_tm)  # (batch, 2, H, W)
+                    
+                    # Select planes based on the planes parameter
+                    if planes_l == 'image':
+                        batch_targets_intensity = batch_targets_intensity[:, 0:1]  # (batch, 1, H, W)
+                        batch_predictions_intensity = batch_predictions_intensity[:, 0:1]  # (batch, 1, H, W)
+                    elif planes_l == 'fourier':
+                        batch_targets_intensity = batch_targets_intensity[:, 1:2]  # (batch, 1, H, W)
+                        batch_predictions_intensity = batch_predictions_intensity[:, 1:2]  # (batch, 1, H, W)
+                    
+                    # Convert intensity to amplitude (square root of intensity) for loss calculation
+                    batch_targets_amplitude = torch.sqrt(batch_targets_intensity + 1e-10)
+                    batch_predictions_amplitude = torch.sqrt(batch_predictions_intensity + 1e-10)
+                    
+                    # Compute MSE loss over selected plane(s) using amplitudes
+                    batch_loss = criterion(batch_predictions_amplitude*1e5, batch_targets_amplitude*1e5)
+                    
+                    total_loss += batch_loss
+                    batch_count += 1
+                
+                avg_loss = total_loss / batch_count
+                avg_loss.backward()
+                return avg_loss
+            
+            # LBFGS step
+            loss = optimizer.step(closure)
+            avg_epoch_loss = loss.item()
+            
+            # Calculate MSE for history
+            with torch.no_grad():
+                sample_batch_idx = 0
+                start_idx = sample_batch_idx * batch_size
                 end_idx = min(start_idx + batch_size, num_measurements)
                 batch_indices = indices[start_idx:end_idx]
-                batch_modes = mode_distributions[batch_indices]
-                if not optimize_on_field:
-                    batch_targets_sz = sz_targets[batch_indices]  # (batch, 2, H, W)
-                    batch_predictions_sz = self.calculate_sz_with_tm(batch_modes, optimized_tm)  # (batch, 2, H, W)
-                    # Compute loss over both planes (sum or mean over plane axis)
-                    if use_combined_loss:
-                        mse_loss = nn.MSELoss()(batch_predictions_sz*1e5, batch_targets_sz*1e5)
-                        correlation_loss = PearsonCorrelationLoss()(batch_predictions_sz*1e5, batch_targets_sz*1e5)
-                        symmetry_loss = torch.norm(optimized_tm - optimized_tm.transpose(-2, -1), p='fro') if symmetry_weight > 0.0 else 0.0
-                        loss = mse_weight * mse_loss + correlation_weight * correlation_loss + symmetry_weight * symmetry_loss
-                        mse_losses.append(mse_loss.item())
-                        correlation_losses.append(correlation_loss.item())
-                        symmetry_losses.append(symmetry_loss.item() if isinstance(symmetry_loss, torch.Tensor) else symmetry_loss)
-                    else:
-                        loss = criterion(batch_predictions_sz*1e5, batch_targets_sz*1e5)
-                else:
-                    # Complex field optimization
-                    batch_field_targets = field_targets[batch_indices]
-                    batch_field_predictions = self.calculate_fields_with_tm(batch_modes, optimized_tm, planes=field_planes)
-                    if field_component.upper() == 'E':
-                        batch_field_predictions = batch_field_predictions[:, :, 0:2]
-                    # Complex MSE
-                    mse_loss = complex_mse(batch_field_predictions, batch_field_targets)
-                    symmetry_loss = torch.norm(optimized_tm - optimized_tm.transpose(-2, -1), p='fro') if symmetry_weight > 0.0 else 0.0
-                    loss = mse_loss + symmetry_weight * symmetry_loss
-                    mse_losses.append(mse_loss.item())
-                    if symmetry_weight > 0.0:
-                        symmetry_losses.append(symmetry_loss.item() if isinstance(symmetry_loss, torch.Tensor) else symmetry_loss)
-                loss.backward()
-                optimizer.step()
-                epoch_loss += loss.item()
-            avg_epoch_loss = epoch_loss / num_batches_per_epoch
+                batch_modes = mode_distributions[:, batch_indices]
+                batch_targets_intensity = intensity_targets[batch_indices]
+                batch_predictions_intensity = self.calculate_intensity_with_tm(batch_modes, optimized_tm)
+                
+                if planes_l == 'image':
+                    batch_targets_intensity = batch_targets_intensity[:, 0:1]
+                    batch_predictions_intensity = batch_predictions_intensity[:, 0:1]
+                elif planes_l == 'fourier':
+                    batch_targets_intensity = batch_targets_intensity[:, 1:2]
+                    batch_predictions_intensity = batch_predictions_intensity[:, 1:2]
+                
+                batch_targets_amplitude = torch.sqrt(batch_targets_intensity + 1e-10)
+                batch_predictions_amplitude = torch.sqrt(batch_predictions_intensity + 1e-10)
+                
+                mse_loss = criterion(batch_predictions_amplitude, batch_targets_amplitude)
+                avg_mse_loss = mse_loss.item()
+            
             history['epoch_losses'].append(avg_epoch_loss)
+            history['mse_losses'].append(avg_mse_loss)
             history['tm_norm'].append(torch.norm(optimized_tm).item())
-            if not optimize_on_field and use_combined_loss:
-                avg_mse_loss = sum(mse_losses) / len(mse_losses) if mse_losses else 0
-                avg_correlation_loss = sum(correlation_losses) / len(correlation_losses) if correlation_losses else 0
-                avg_symmetry_loss = sum(symmetry_losses) / len(symmetry_losses) if symmetry_losses else 0
-                history['mse_losses'].append(avg_mse_loss)
-                history['correlation_losses'].append(avg_correlation_loss)
-                history['symmetry_losses'].append(avg_symmetry_loss)
-            else:
-                if mse_losses:
-                    history['mse_losses'].append(sum(mse_losses) / len(mse_losses))
-                if symmetry_losses:
-                    history['symmetry_losses'].append(sum(symmetry_losses) / len(symmetry_losses))
-            tm_error = torch.norm(self.real_tm_tensor - optimized_tm, 'fro').item()
             tm_error_aligned, _ = calculate_phase_aligned_frobenius_norm(self.real_tm_tensor, optimized_tm)
-            history['tm_frobenius_error'].append(tm_error)
             history['tm_frobenius_error_aligned'].append(tm_error_aligned)
             history['learning_rates'].append(optimizer.param_groups[0]['lr'])
-            scheduler.step(avg_epoch_loss)
-            print(f"Epoch {epoch + 1}/{num_epochs}: Avg Loss = {avg_epoch_loss:.6f}, TM Error = {tm_error:.6f}, TM Error (Aligned) = {tm_error_aligned:.6f}, LR = {optimizer.param_groups[0]['lr']:.2e}")
+            print(f"Epoch {epoch + 1}/{num_epochs}: Avg Loss = {avg_epoch_loss:.6f}, TM Error (Aligned) = {tm_error_aligned:.3f}, LR = {optimizer.param_groups[0]['lr']:.2e}")
         self.optimized_tm_tensor = optimized_tm.detach()
         print("Optimization completed!")
         return history
     
-    def calculate_sz_with_tm(self, mode_distribution: torch.Tensor, tm: torch.Tensor) -> torch.Tensor:
+    def calculate_intensity_with_tm(self, mode_distribution: torch.Tensor, tm: torch.Tensor) -> torch.Tensor:
         """
-        Calculate S_z for both planes using a specific TM (for optimization).
+        Calculate intensity I = |E_x|^2 + |E_y|^2 for both planes using a specific TM (for optimization).
         Args:
-            mode_distribution: Tensor of shape (batch_size, N_modes)
+            mode_distribution: Tensor of shape (N_modes, batch_size)
             tm: Transmission matrix to use
         Returns:
-            torch.Tensor: S_z of shape (batch_size, 2, H, W)
+            torch.Tensor: Intensity of shape (batch_size, 2, H, W)
         """
-        batch_size, N_modes = mode_distribution.shape
-        # Total fields for both planes at once: (batch, 2, 4, H, W)
+        N_modes, batch_size = mode_distribution.shape
+        # Total fields for both planes at once: (batch, 2, 2, H, W) [E_x, E_y]
         total_fields = self.calculate_fields_with_tm(mode_distribution, tm)
         E_x = total_fields[:, :, 0]
         E_y = total_fields[:, :, 1]
-        H_x = total_fields[:, :, 2]
-        H_y = total_fields[:, :, 3]
-        S_z_both = 0.5 * torch.real(E_x * torch.conj(H_y) - E_y * torch.conj(H_x))
-        return S_z_both
+        I_both = torch.abs(E_x)**2 + torch.abs(E_y)**2
+        return I_both
 
     def calculate_fields(self, mode_distribution: torch.Tensor, use_real_tm: bool = True) -> torch.Tensor:
         """
-        Calculate complex fields (Ex,Ey,Hx,Hy) for both planes.
+        Calculate complex electric fields (E_x, E_y) for both planes.
         Args:
-            mode_distribution: Tensor of shape (batch_size, N_modes)
+            mode_distribution: Tensor of shape (N_modes, batch_size)
             use_real_tm: If True, use real TM; if False, use optimized TM
         Returns:
-            torch.Tensor: (batch_size, 2, 4, H, W)
+            torch.Tensor: (batch_size, 2, 2, H, W) [planes: image/fourier, components: E_x/E_y]
         """
         tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
         return self.calculate_fields_with_tm(mode_distribution, tm)
 
     def calculate_fields_with_tm(self, mode_distribution: torch.Tensor, tm: torch.Tensor, planes: str = 'both') -> torch.Tensor:
         """
-        Calculate complex fields (Ex,Ey,Hx,Hy) for both planes with a specific TM.
+        Calculate complex electric fields (E_x, E_y) for both planes with a specific TM.
         Args:
-            mode_distribution: Tensor of shape (batch_size, N_modes)
+            mode_distribution: Tensor of shape (N_modes, batch_size)
             tm: Transmission matrix to use
             planes: 'both', 'image', or 'fourier'
         Returns:
-            torch.Tensor: (batch_size, P, 4, H, W) where P is number of planes (1 or 2)
+            torch.Tensor: (batch_size, P, 2, H, W) where P is number of planes (1 or 2), 2 is (E_x, E_y)
         """
-        output_modes = torch.einsum('nm,bm->bn', tm, mode_distribution)
-        # mode_fields shape: (N_modes, 2, 4, H, W)
+        output_modes_nm_b = torch.matmul(tm, mode_distribution)  # (N_modes, batch)
         planes_l = planes.lower()
         if planes_l == 'both':
-            total_fields = torch.einsum('bn,npfhw->bpfhw', output_modes, self.mode_fields)
-            return total_fields
+            selected_fields = self.mode_fields
         elif planes_l == 'image':
-            # Only plane index 0
-            total_single = torch.einsum('bn,nfhw->bfhw', output_modes, self.mode_fields[:, 0])
-            return total_single.unsqueeze(1)
+            selected_fields = self.mode_fields[0:1]
         elif planes_l == 'fourier':
-            total_single = torch.einsum('bn,nfhw->bfhw', output_modes, self.mode_fields[:, 1])
-            return total_single.unsqueeze(1)
+            selected_fields = self.mode_fields[1:2]
         else:
             raise ValueError("planes must be 'both', 'image', or 'fourier'")
+        selected_fields = selected_fields.contiguous()
+        P, C, H, W, N_modes = selected_fields.shape
+        field_matrix = selected_fields.reshape(P * C * H * W, N_modes)
+        total_fields_flat = torch.matmul(field_matrix, output_modes_nm_b)  # (P*C*H*W, batch)
+        batch_size = mode_distribution.shape[1]
+        total_fields = total_fields_flat.view(P, C, H, W, batch_size)
+        total_fields = total_fields.permute(4, 0, 1, 2, 3)
+        return total_fields
     
     def calculate_phase_aligned_tm_error(self) -> Tuple[float, float]:
         """
@@ -686,31 +553,25 @@ class TMMeasurementSystem:
         real_sv = torch.linalg.svd(self.real_tm_tensor, full_matrices=False)[1]
         optimized_sv = torch.linalg.svd(self.optimized_tm_tensor, full_matrices=False)[1]
         
-        # Calculate reconstruction error
-        tm_error = torch.norm(self.real_tm_tensor - self.optimized_tm_tensor, 'fro')
-        tm_error_normalized = tm_error / torch.norm(self.real_tm_tensor, 'fro')
-        
         # Calculate phase-aligned reconstruction error
         tm_error_aligned, optimal_phase = self.calculate_phase_aligned_tm_error()
         tm_error_aligned_normalized = tm_error_aligned / torch.norm(self.real_tm_tensor, 'fro')
         
         # Test on new measurements
         test_modes = self.sample_mode_distribution(100)
-        real_sz = self.calculate_sz(test_modes, use_real_tm=True)
-        predicted_sz = self.calculate_sz(test_modes, use_real_tm=False)
+        real_intensity = self.calculate_intensity(test_modes, use_real_tm=True)
+        predicted_intensity = self.calculate_intensity(test_modes, use_real_tm=False)
         
-        sz_error = torch.mean(torch.abs(real_sz - predicted_sz))
-        sz_error_normalized = sz_error / torch.mean(torch.abs(real_sz))
+        intensity_error = torch.mean(torch.abs(real_intensity - predicted_intensity))
+        intensity_error_normalized = intensity_error / torch.mean(torch.abs(real_intensity))
         
         return {
-            'tm_frobenius_error': tm_error.item(),
-            'tm_frobenius_error_normalized': tm_error_normalized.item(),
             'tm_frobenius_error_aligned': tm_error_aligned,
             'tm_frobenius_error_aligned_normalized': tm_error_aligned_normalized,
             'optimal_phase_radians': optimal_phase,
             'optimal_phase_degrees': optimal_phase * 180 / np.pi,
-            'sz_mean_error': sz_error.item(),
-            'sz_mean_error_normalized': sz_error_normalized.item(),
+            'intensity_mean_error': intensity_error.item(),
+            'intensity_mean_error_normalized': intensity_error_normalized.item(),
             'real_singular_values': real_sv.cpu().numpy(),
             'optimized_singular_values': optimized_sv.cpu().numpy()
         }
@@ -734,30 +595,74 @@ class TMMeasurementSystem:
         axes[0, 0].grid(True, alpha=0.3)
         
         # Plot TM error
-        tm_error_norm = float(evaluation_results['tm_frobenius_error_normalized'])
         tm_error_aligned_norm = float(evaluation_results['tm_frobenius_error_aligned_normalized'])
-        sz_error_norm = float(evaluation_results['sz_mean_error_normalized'])
+        intensity_error_norm = float(evaluation_results['intensity_mean_error_normalized'])
         
-        axes[0, 1].bar(['TM Error', 'TM Error\n(Phase-Aligned)', 'S_z Error'], 
-                      [tm_error_norm, tm_error_aligned_norm, sz_error_norm])
+        axes[0, 1].bar(['TM Error\n(Phase-Aligned)', 'Intensity Error'], 
+                      [tm_error_aligned_norm, intensity_error_norm])
         axes[0, 1].set_ylabel('Normalized Error')
         axes[0, 1].set_title('Reconstruction Errors')
         axes[0, 1].grid(True, alpha=0.3)
         
-        # Plot example S_z comparison (image plane only)
+        # Plot example intensity comparison (image plane only)
         test_modes = self.sample_mode_distribution(1)
-        real_sz = self.calculate_sz(test_modes, use_real_tm=True)
-        predicted_sz = self.calculate_sz(test_modes, use_real_tm=False)
+        real_intensity = self.calculate_intensity(test_modes, use_real_tm=True)
+        predicted_intensity = self.calculate_intensity(test_modes, use_real_tm=False)
         
         # Select image plane (index 0) for visualization
-        im1 = axes[1, 0].imshow(real_sz[0, 0].cpu().numpy(), cmap='viridis')
-        axes[1, 0].set_title('Real S_z (Image Plane)')
+        im1 = axes[1, 0].imshow(real_intensity[0, 0].cpu().numpy(), cmap='viridis')
+        axes[1, 0].set_title('Real Intensity (Image Plane)')
         plt.colorbar(im1, ax=axes[1, 0])
         
-        im2 = axes[1, 1].imshow(predicted_sz[0, 0].cpu().numpy(), cmap='viridis')
-        axes[1, 1].set_title('Predicted S_z (Image Plane)')
+        im2 = axes[1, 1].imshow(predicted_intensity[0, 0].cpu().numpy(), cmap='viridis')
+        axes[1, 1].set_title('Predicted Intensity (Image Plane)')
         plt.colorbar(im2, ax=axes[1, 1])
         
+        plt.tight_layout()
+        plt.show()
+    
+    def plot_training_intensity_example(
+        self,
+        mode_distributions: torch.Tensor,
+        intensity_targets: torch.Tensor,
+        example_idx: Optional[int] = None,
+        plane: str = 'image'
+    ):
+        """
+        Plot an example intensity comparison from the training set.
+        
+        Args:
+            mode_distributions: Tensor of shape (N_modes, num_measurements)
+            intensity_targets: Tensor of shape (num_measurements, 2, H, W)
+            example_idx: Optional index of the training sample to visualize
+            plane: 'image' or 'fourier' plane to visualize
+        """
+        if mode_distributions is None or intensity_targets is None:
+            print("Training data not provided; skipping training intensity plot.")
+            return
+        num_measurements = mode_distributions.shape[1]
+        if num_measurements == 0:
+            print("Training set is empty; skipping training intensity plot.")
+            return
+        plane_idx = 0 if plane.lower() == 'image' else 1
+        if example_idx is None:
+            example_idx = np.random.randint(0, num_measurements)
+        example_idx = int(np.clip(example_idx, 0, num_measurements - 1))
+        with torch.no_grad():
+            mode_sample = mode_distributions[:, example_idx:example_idx + 1]
+            predicted_intensity = self.calculate_intensity(mode_sample, use_real_tm=False)[0, plane_idx]
+        target_intensity = intensity_targets[example_idx, plane_idx]
+        
+        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+        im1 = axes[0].imshow(target_intensity.detach().cpu().numpy(), cmap='viridis')
+        axes[0].set_title(f'Training GT Intensity ({plane.capitalize()} plane)')
+        plt.colorbar(im1, ax=axes[0])
+        
+        im2 = axes[1].imshow(predicted_intensity.detach().cpu().numpy(), cmap='viridis')
+        axes[1].set_title(f'Training Pred Intensity ({plane.capitalize()} plane)')
+        plt.colorbar(im2, ax=axes[1])
+        
+        fig.suptitle(f'Training Example #{example_idx}')
         plt.tight_layout()
         plt.show()
     
@@ -769,15 +674,9 @@ class TMMeasurementSystem:
             history: Training history from optimize_tm()
         """
         mse_losses = history.get('mse_losses') or []
-        correlation_losses = history.get('correlation_losses') or []
-        symmetry_losses = history.get('symmetry_losses') or []
-        tm_frobenius_error = history.get('tm_frobenius_error') or []
         tm_frobenius_error_aligned = history.get('tm_frobenius_error_aligned') or []
         learning_rates = history.get('learning_rates') or []
-        has_correlation = len(correlation_losses) > 0
         has_mse = len(mse_losses) > 0
-        has_symmetry = len(symmetry_losses) > 0
-        has_tm_error = len(tm_frobenius_error) > 0
         has_tm_error_aligned = len(tm_frobenius_error_aligned) > 0
         has_learning_rates = len(learning_rates) > 0
         
@@ -791,15 +690,12 @@ class TMMeasurementSystem:
         axes[0, 0].grid(True, alpha=0.3)
         axes[0, 0].set_yscale('log')  # Log scale for better visualization
         
-        # Plot MSE and correlation losses separately if available
-        if has_mse or has_correlation:
-            if has_mse:
-                axes[0, 1].plot(mse_losses, 'r-', label='MSE Loss', linewidth=2, marker='s', markersize=4)
-            if has_correlation:
-                axes[0, 1].plot(correlation_losses, 'g-', label='Correlation Loss', linewidth=2, marker='^', markersize=4)
+        # Plot MSE loss
+        if has_mse:
+            axes[0, 1].plot(mse_losses, 'r-', label='MSE Loss', linewidth=2, marker='s', markersize=4)
             axes[0, 1].set_xlabel('Epoch')
             axes[0, 1].set_ylabel('Loss')
-            axes[0, 1].set_title('Loss Components vs Epoch')
+            axes[0, 1].set_title('MSE Loss vs Epoch')
             axes[0, 1].legend()
             axes[0, 1].grid(True, alpha=0.3)
             axes[0, 1].set_yscale('log')
@@ -814,13 +710,11 @@ class TMMeasurementSystem:
         axes[1, 0].grid(True, alpha=0.3)
         
         # Plot TM Frobenius error
-        if has_tm_error:
-            axes[1, 1].plot(tm_frobenius_error, 'red', linewidth=2, marker='s', markersize=4, label='Regular')
-            if has_tm_error_aligned:
-                axes[1, 1].plot(tm_frobenius_error_aligned, 'blue', linewidth=2, marker='^', markersize=4, label='Phase-Aligned')
+        if has_tm_error_aligned:
+            axes[1, 1].plot(tm_frobenius_error_aligned, 'blue', linewidth=2, marker='^', markersize=4, label='Phase-Aligned')
             axes[1, 1].set_xlabel('Epoch')
             axes[1, 1].set_ylabel('TM Frobenius Error')
-            axes[1, 1].set_title('TM Reconstruction Error vs Epoch')
+            axes[1, 1].set_title('TM Reconstruction Error (Phase-Aligned) vs Epoch')
             axes[1, 1].legend()
             axes[1, 1].grid(True, alpha=0.3)
             axes[1, 1].set_yscale('log')
@@ -856,22 +750,14 @@ class TMMeasurementSystem:
         if has_mse:
             print(f"Initial MSE Loss: {mse_losses[0]:.6f}")
             print(f"Final MSE Loss: {mse_losses[-1]:.6f}")
-        if has_correlation:
-            print(f"Initial Correlation Loss: {correlation_losses[0]:.6f}")
-            print(f"Final Correlation Loss: {correlation_losses[-1]:.6f}")
         
         print(f"Initial TM Norm: {history['tm_norm'][0]:.6f}")
         print(f"Final TM Norm: {history['tm_norm'][-1]:.6f}")
         
-        if has_tm_error:
-            print(f"Initial TM Frobenius Error: {tm_frobenius_error[0]:.6f}")
-            print(f"Final TM Frobenius Error: {tm_frobenius_error[-1]:.6f}")
-            print(f"TM Error Reduction: {tm_frobenius_error[0]/tm_frobenius_error[-1]:.2f}x")
-            
-            if has_tm_error_aligned:
-                print(f"Initial TM Error (Phase-Aligned): {tm_frobenius_error_aligned[0]:.6f}")
-                print(f"Final TM Error (Phase-Aligned): {tm_frobenius_error_aligned[-1]:.6f}")
-                print(f"TM Error Reduction (Phase-Aligned): {tm_frobenius_error_aligned[0]/tm_frobenius_error_aligned[-1]:.2f}x")
+        if has_tm_error_aligned:
+            print(f"Initial TM Error (Phase-Aligned): {tm_frobenius_error_aligned[0]:.6f}")
+            print(f"Final TM Error (Phase-Aligned): {tm_frobenius_error_aligned[-1]:.6f}")
+            print(f"TM Error Reduction (Phase-Aligned): {tm_frobenius_error_aligned[0]/tm_frobenius_error_aligned[-1]:.2f}x")
         
         print("=" * 35)
 
@@ -881,13 +767,13 @@ def main():
     Example usage of the TM retrieval system.
     """
     wavelength = 632.8e-9
-    core_radius = 13e-6
+    core_radius = 25e-6
     NA = 0.22
     cladding_index = 1.457
     core_index = np.sqrt(cladding_index**2 + NA**2)
     margin = 1.1
     x_range = core_radius*margin
-    N_0 = 256
+    N_0 = 128
     dx_i = 2*x_range/(N_0-1)
     y_range = x_range
     f = 200e-3 # focal length of the lens
@@ -917,22 +803,17 @@ def main():
     
     # Sample measurements
     print("\nSampling measurements...")
-    mode_distributions, sz_measurements = tm_system.sample_measurements(num_measurements=2000)
+    mode_distributions, intensity_measurements = tm_system.sample_measurements(num_measurements=2500)
     
     # Optimize TM
     print("\nOptimizing transmission matrix...")
     history = tm_system.optimize_tm(
         mode_distributions=mode_distributions,
-        sz_targets=sz_measurements,
-        num_epochs=200,
+        intensity_targets=intensity_measurements,
+        num_epochs=15,
         learning_rate=0.001,
-        batch_size=128,
-        use_combined_loss=True,
-        mse_weight=5.0,
-        correlation_weight=0.0,
-        symmetry_weight=1.0,
-        optimize_on_field=True,
-        field_planes='image'
+        batch_size=512,
+        planes='both',
     )
     
     # Evaluate results
@@ -941,17 +822,21 @@ def main():
     
     # Print results
     print(f"\nReconstruction Results:")
-    print(f"TM Frobenius Error (Normalized): {evaluation_results['tm_frobenius_error_normalized']:.6f}")
     print(f"TM Frobenius Error (Phase-Aligned, Normalized): {evaluation_results['tm_frobenius_error_aligned_normalized']:.6f}")
     print(f"Optimal Phase: {evaluation_results['optimal_phase_degrees']:.2f}° ({evaluation_results['optimal_phase_radians']:.4f} rad)")
-    print(f"S_z Mean Error (Normalized): {evaluation_results['sz_mean_error_normalized']:.6f}")
+    print(f"Intensity Mean Error (Normalized): {evaluation_results['intensity_mean_error_normalized']:.6f}")
     
     # Plot training history
     print("\nPlotting training history...")
     tm_system.plot_training_history(history)
     
-    # Plot results
+    # Plot evaluation results
+    print("\nPlotting evaluation results...")
     tm_system.plot_results(evaluation_results)
+    
+    # Plot example from the training set
+    print("\nPlotting training-set intensity example...")
+    tm_system.plot_training_intensity_example(mode_distributions, intensity_measurements, plane='image')
 
 
 if __name__ == "__main__":
