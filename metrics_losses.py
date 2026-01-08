@@ -58,8 +58,9 @@ def calculate_phase_aligned_tm_error(real_tm: torch.Tensor, optimized_tm: torch.
 def evaluate_reconstruction(
     real_tm_tensor: torch.Tensor,
     optimized_tm_tensor: torch.Tensor,
-    sample_mode_distribution_fn,
-    calculate_intensity_fn
+    sample_input_fn,
+    calculate_intensity_fn,
+    use_slm: bool = False
 ) -> Dict:
     """
     Evaluate the quality of TM reconstruction.
@@ -67,8 +68,13 @@ def evaluate_reconstruction(
     Args:
         real_tm_tensor: Real transmission matrix tensor
         optimized_tm_tensor: Optimized transmission matrix tensor
-        sample_mode_distribution_fn: Function to sample mode distributions (batch_size) -> (N_modes, batch_size)
-        calculate_intensity_fn: Function to calculate intensity (mode_dist, use_real_tm) -> intensity
+        sample_input_fn: Function to sample inputs:
+            - If use_slm=False: (batch_size) -> (N_modes, batch_size) mode distributions
+            - If use_slm=True: (batch_size) -> (batch_size, H, W) SLM patterns
+        calculate_intensity_fn: Function to calculate intensity:
+            - If use_slm=False: (mode_dist, use_real_tm) -> intensity
+            - If use_slm=True: (slm_patterns, use_real_tm) -> intensity
+        use_slm: If True, evaluation uses SLM patterns; if False, uses mode distributions
     
     Returns:
         Dict containing evaluation metrics
@@ -82,9 +88,9 @@ def evaluate_reconstruction(
     tm_error_aligned_normalized = tm_error_aligned / torch.norm(real_tm_tensor, 'fro')
     
     # Test on new measurements
-    test_modes = sample_mode_distribution_fn(100)
-    real_intensity = calculate_intensity_fn(test_modes, use_real_tm=True)
-    predicted_intensity = calculate_intensity_fn(test_modes, use_real_tm=False)
+    test_inputs = sample_input_fn(100)
+    real_intensity = calculate_intensity_fn(test_inputs, use_real_tm=True)
+    predicted_intensity = calculate_intensity_fn(test_inputs, use_real_tm=False)
     
     intensity_error = torch.mean(torch.abs(real_intensity - predicted_intensity))
     intensity_error_normalized = intensity_error / torch.mean(torch.abs(real_intensity))

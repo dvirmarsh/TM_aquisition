@@ -78,7 +78,11 @@ class ZoomFFT2D_Optimizable(nn.Module):
             norm_factor = (1.0 / (N_eff**2))
             gamma = -gamma
         else:
-            norm_factor = np.sqrt(s_a_x * s_a_y -gamma**2/(A_x*A_y))
+            # Use torch.sqrt if inputs are tensors, otherwise np.sqrt
+            if isinstance(s_a_x, torch.Tensor):
+                norm_factor = torch.sqrt(s_a_x * s_a_y - gamma**2/(A_x*A_y))
+            else:
+                norm_factor = np.sqrt(s_a_x * s_a_y -gamma**2/(A_x*A_y))
 
             
         # --- 2. Pre-Chirp Phase ---
@@ -154,26 +158,36 @@ class ZernikeAberrationLayer(nn.Module):
         phi = torch.atan2(Y, X)
         
         # 2. Generate Zernike Bases
-        zernike_list = []
+        if n_modes == 0:
+            # Handle case when no modes are requested
+            # Create empty tensor with shape (0, N, M)
+            self.register_buffer('zernike_stack', torch.empty(0, N, M))
+        else:
+            zernike_list = []
 
-        current_noll = 4
-        for i in range(n_modes):
-            n, m = self._noll_to_nm(current_noll)
-            z_map = self._zernike_polar(n, m, rho, phi)
-            zernike_list.append(z_map)
-            
-            current_noll += 1
-            
-        # Shape: (n_modes, N, M)
-        self.register_buffer('zernike_stack', torch.stack(zernike_list, dim=0))
+            current_noll = 4
+            for i in range(n_modes):
+                n, m = self._noll_to_nm(current_noll)
+                z_map = self._zernike_polar(n, m, rho, phi)
+                zernike_list.append(z_map)
+                
+                current_noll += 1
+                
+            # Shape: (n_modes, N, M)
+            self.register_buffer('zernike_stack', torch.stack(zernike_list, dim=0))
 
     def forward(self, x, coeffs):
         """
         Args:
-            x: Input batch (Batch, N, M)
+            x: Input with shape (..., N, M) where ... can be any leading dimensions
+               (e.g., (batch, N, M), (batch, polarization, N, M), etc.)
             coeffs: Global coefficients (n_modes,). 
                     Same coeffs applied to every image in batch.
         """
+        # Handle case when no modes are requested (n_modes=0)
+        if self.n_modes == 0:
+            return x
+        
         # Calculate single phase screen from global coefficients
         # coeffs: (n_modes)
         # zernike_stack: (n_modes, N, M)
@@ -183,8 +197,9 @@ class ZernikeAberrationLayer(nn.Module):
         # Create aberration term
         aberration = torch.exp(1j * total_phase)
         
-        # Broadcast (N, M) -> (Batch, N, M)
-        return x * aberration.unsqueeze(0)
+        # Broadcast (N, M) to match x's shape (..., N, M)
+        # aberration shape is (N, M), x has arbitrary leading dims
+        return x * aberration
 
     def _noll_to_nm(self, j):
         """Convert Noll index j to (n, m) and print."""
@@ -252,10 +267,11 @@ def calculate_mode_fields(
     Y: np.ndarray,
     device: str,
     N_pad: int,
-    mult_factor: float
+    mult_factor: float,
+    image_plane_only: bool = False
 ) -> torch.Tensor:
     """
-    Calculate and store mode field components needed for intensity calculation in both image and Fourier planes.
+    Calculate and store mode field components needed for intensity calculation.
     
     Args:
         guided_modes: List of guided modes
@@ -265,16 +281,19 @@ def calculate_mode_fields(
         device: Device to use for computations
         N_pad: Padding size for FFT
         mult_factor: Multiplication factor for Fourier plane
+        image_plane_only: If True, only calculate image plane fields (for SLM mode)
     
     Returns:
-        torch.Tensor: Tensor of shape (2, 2, H, W, N_modes) containing
-                     (E_x, E_y) for each plane, with the last dim indexing modes
+        torch.Tensor: 
+            - If image_plane_only=False: (2, 2, H, W, N_modes) [planes: image/fourier, components: E_x/E_y]
+            - If image_plane_only=True: (1, 2, H, W, N_modes) [only image plane]
     """
     N_modes = len(guided_modes)
     H, W = X.shape
-    # 2: [0]=image plane, [1]=fourier plane
+    # 2: [0]=image plane, [1]=fourier plane (or 1 if image_plane_only)
     # 2: [0]=E_x, [1]=E_y
-    mode_fields = torch.zeros((2, 2, H, W, N_modes), dtype=torch.complex64, device=device)
+    num_planes = 1 if image_plane_only else 2
+    mode_fields = torch.zeros((num_planes, 2, H, W, N_modes), dtype=torch.complex64, device=device)
     for i, mode in tqdm(enumerate(guided_modes), total=N_modes, desc="Calculating mode fields"):
         fields = calculate_wave_distribution(mode, fiber_params, X, Y)
         r = np.sqrt(X**2 + Y**2)
@@ -290,9 +309,10 @@ def calculate_mode_fields(
         # Image plane fields
         mode_fields[0, 0, :, :, i] = E_x
         mode_fields[0, 1, :, :, i] = E_y
-        # Fourier plane fields (use N_pad and mult_factor)
-        mode_fields[1, 0, :, :, i] = fourier_plane(E_x, N_pad, mult_factor)
-        mode_fields[1, 1, :, :, i] = fourier_plane(E_y, N_pad, mult_factor)
+        # Fourier plane fields (only if not image_plane_only)
+        if not image_plane_only:
+            mode_fields[1, 0, :, :, i] = fourier_plane(E_x, N_pad, mult_factor)
+            mode_fields[1, 1, :, :, i] = fourier_plane(E_y, N_pad, mult_factor)
     return mode_fields
 
 
@@ -322,7 +342,8 @@ def load_or_calculate_mode_fields(
     Y: np.ndarray,
     device: str,
     N_pad: int,
-    mult_factor: float
+    mult_factor: float,
+    image_plane_only: bool = False
 ) -> torch.Tensor:
     """
     Load mode_fields from file if it exists, otherwise calculate and save them.
@@ -336,9 +357,12 @@ def load_or_calculate_mode_fields(
         device: Device to use for computations
         N_pad: Padding size for FFT
         mult_factor: Multiplication factor for Fourier plane
+        image_plane_only: If True, only calculate/store image plane mode fields (for SLM mode)
     
     Returns:
         torch.Tensor: Mode fields tensor
+            - If image_plane_only=False: (2, 2, H, W, N_modes) [planes: image/fourier, components: E_x/E_y]
+            - If image_plane_only=True: (1, 2, H, W, N_modes) [only image plane]
     """
     filename = get_mode_fields_filename(fiber_params, grid_params)
     
@@ -365,14 +389,20 @@ def load_or_calculate_mode_fields(
             if mode_fields.dim() == 5 and mode_fields.shape[1] == 4:
                 mode_fields = mode_fields[:, 0:2, :, :, :]
                 print("Extracted E_x, E_y from old 4-component format.")
+            
+            # If image_plane_only=True, extract only image plane (index 0)
+            if image_plane_only and mode_fields.shape[0] == 2:
+                mode_fields = mode_fields[0:1, :, :, :, :]  # Keep only image plane
+                print("Extracted image plane only (SLM mode).")
+            
             print(f"Successfully loaded mode_fields with shape: {mode_fields.shape}")
             return mode_fields
         except Exception as e:
             print(f"Error loading mode_fields from {filename}: {e}")
             print("Will recalculate mode_fields...")
     
-    print("Calculating mode_fields (this may take a while)...")
-    mode_fields = calculate_mode_fields(guided_modes, fiber_params, X, Y, device, N_pad, mult_factor)
+    print(f"Calculating mode_fields (this may take a while)... {'[Image plane only]' if image_plane_only else ''}")
+    mode_fields = calculate_mode_fields(guided_modes, fiber_params, X, Y, device, N_pad, mult_factor, image_plane_only=image_plane_only)
     
     # Save the calculated mode_fields
     print(f"Saving mode_fields to {filename}...")
@@ -447,16 +477,22 @@ def sample_mode_distribution(N_modes: int, batch_size: int, device: str) -> torc
 
 def plot_results(
     evaluation_results: Dict,
-    sample_mode_distribution_fn,
-    calculate_intensity_fn
+    sample_input_fn,
+    calculate_intensity_fn,
+    use_slm: bool = False
 ):
     """
     Plot optimization results and evaluation metrics.
     
     Args:
         evaluation_results: Results from evaluate_reconstruction()
-        sample_mode_distribution_fn: Function to sample mode distributions (batch_size) -> (N_modes, batch_size)
-        calculate_intensity_fn: Function to calculate intensity (mode_dist, use_real_tm) -> intensity
+        sample_input_fn: Function to sample inputs:
+            - If use_slm=False: (batch_size) -> (N_modes, batch_size) mode distributions
+            - If use_slm=True: (batch_size) -> (batch_size, H, W) SLM patterns
+        calculate_intensity_fn: Function to calculate intensity:
+            - If use_slm=False: (mode_dist, use_real_tm) -> intensity
+            - If use_slm=True: (slm_patterns, use_real_tm) -> intensity
+        use_slm: If True, plotting uses SLM patterns; if False, uses mode distributions
     """
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     
@@ -480,9 +516,9 @@ def plot_results(
     axes[0, 1].grid(True, alpha=0.3)
     
     # Plot example intensity comparison (image plane only)
-    test_modes = sample_mode_distribution_fn(1)
-    real_intensity = calculate_intensity_fn(test_modes, use_real_tm=True)
-    predicted_intensity = calculate_intensity_fn(test_modes, use_real_tm=False)
+    test_inputs = sample_input_fn(1)
+    real_intensity = calculate_intensity_fn(test_inputs, use_real_tm=True)
+    predicted_intensity = calculate_intensity_fn(test_inputs, use_real_tm=False)
     
     # Select image plane (index 0) for visualization
     im1 = axes[1, 0].imshow(real_intensity[0, 0].cpu().numpy(), cmap='viridis')
