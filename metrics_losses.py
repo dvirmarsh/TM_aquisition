@@ -7,7 +7,8 @@ and optimizing transmission matrices.
 
 import numpy as np
 import torch
-from typing import Dict, Tuple
+import torch.nn as nn
+from typing import Dict, Tuple, Optional
 
 
 def calculate_phase_aligned_frobenius_norm(T1: torch.Tensor, T2: torch.Tensor) -> Tuple[float, float]:
@@ -33,6 +34,7 @@ def calculate_phase_aligned_frobenius_norm(T1: torch.Tensor, T2: torch.Tensor) -
     
     # Calculate the phase-aligned difference
     phase_factor = torch.exp(1j * phi_opt)
+    phase_factor = trace_product
     aligned_diff = T1 - phase_factor * T2
     
     # Calculate Frobenius norm
@@ -53,6 +55,68 @@ def calculate_phase_aligned_tm_error(real_tm: torch.Tensor, optimized_tm: torch.
         Tuple of (frobenius_norm, optimal_phase_radians)
     """
     return calculate_phase_aligned_frobenius_norm(real_tm, optimized_tm)
+
+
+class PearsonCorrelationLoss(nn.Module):
+    """
+    Pearson correlation loss module for real tensors (intensities).
+    
+    The loss is defined as 1 - Pearson correlation coefficient, so:
+    - Perfect correlation (r=1) gives loss = 0
+    - No correlation (r=0) gives loss = 1
+    - Perfect negative correlation (r=-1) gives loss = 2
+    """
+    
+    def __init__(self, dim: Optional[int] = None, eps: float = 1e-8):
+        """
+        Initialize Pearson correlation loss module.
+        
+        Args:
+            dim: Dimension along which to compute correlation. If None, flattens tensors.
+            eps: Small value to avoid division by zero
+        """
+        super(PearsonCorrelationLoss, self).__init__()
+        self.dim = dim
+        self.eps = eps
+    
+    def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate Pearson correlation loss between two real tensors (intensities).
+        
+        Args:
+            x: First real tensor (intensities)
+            y: Second real tensor (intensities, same shape as x)
+        
+        Returns:
+            Pearson correlation loss tensor (1 - correlation coefficient)
+        """
+        # Flatten tensors if no dimension specified
+        if self.dim is None:
+            x = x.flatten()
+            y = y.flatten()
+        
+        # Center the variables
+        x_centered = x - torch.mean(x, dim=self.dim, keepdim=True) if self.dim is not None else x - torch.mean(x)
+        y_centered = y - torch.mean(y, dim=self.dim, keepdim=True) if self.dim is not None else y - torch.mean(y)
+        
+        # Calculate covariance
+        if self.dim is None:
+            covariance = torch.sum(x_centered * y_centered)
+        else:
+            covariance = torch.sum(x_centered * y_centered, dim=self.dim, keepdim=True)
+        
+        # Calculate standard deviations
+        x_std = torch.sqrt(torch.sum(x_centered ** 2, dim=self.dim, keepdim=True) + self.eps) if self.dim is not None else torch.sqrt(torch.sum(x_centered ** 2) + self.eps)
+        y_std = torch.sqrt(torch.sum(y_centered ** 2, dim=self.dim, keepdim=True) + self.eps) if self.dim is not None else torch.sqrt(torch.sum(y_centered ** 2) + self.eps)
+        
+        # Calculate Pearson correlation coefficient
+        correlation = covariance / (x_std * y_std + self.eps)
+        
+        # Return loss as 1 - correlation (clamped to avoid numerical issues)
+        correlation = torch.clamp(correlation, -1.0, 1.0)
+        loss = 1.0 - correlation
+        
+        return loss.mean()
 
 
 def evaluate_reconstruction(

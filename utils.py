@@ -341,9 +341,9 @@ def load_or_calculate_mode_fields(
     X: np.ndarray,
     Y: np.ndarray,
     device: str,
-    N_pad: int,
     mult_factor: float,
-    image_plane_only: bool = False
+    image_plane_only: bool = True,  # TODO: remove this
+    N_pad: int = 128,  # TODO: remove this
 ) -> torch.Tensor:
     """
     Load mode_fields from file if it exists, otherwise calculate and save them.
@@ -449,37 +449,12 @@ def mode_fields_cache_exists(fiber_params: Dict, grid_params: Dict) -> bool:
     return os.path.exists(filename)
 
 
-def sample_mode_distribution(N_modes: int, batch_size: int, device: str) -> torch.Tensor:
-    """
-    Sample random mode distributions.
-    
-    Args:
-        N_modes: Number of modes
-        batch_size: Number of mode distributions to sample
-        device: Device to use for computations
-            
-    Returns:
-        torch.Tensor: Complex tensor of shape (N_modes, batch_size) 
-                     representing mode amplitudes
-    """
-    # Sample complex Gaussian random amplitudes with columns as independent distributions
-    real_part = torch.randn(N_modes, batch_size, device=device)
-    imag_part = torch.randn(N_modes, batch_size, device=device)
-    
-    # Normalize each column to unit power
-    power = torch.sum(real_part**2 + imag_part**2, dim=0, keepdim=True)
-    amplitudes = (real_part + 1j * imag_part) / torch.sqrt(power)
-    
-    return amplitudes
-
-
 # --- Plotting Functions ---
 
 def plot_results(
     evaluation_results: Dict,
     sample_input_fn,
-    calculate_intensity_fn,
-    use_slm: bool = False
+    calculate_intensity_fn
 ):
     """
     Plot optimization results and evaluation metrics.
@@ -487,12 +462,9 @@ def plot_results(
     Args:
         evaluation_results: Results from evaluate_reconstruction()
         sample_input_fn: Function to sample inputs:
-            - If use_slm=False: (batch_size) -> (N_modes, batch_size) mode distributions
-            - If use_slm=True: (batch_size) -> (batch_size, H, W) SLM patterns
+            - (batch_size) -> (batch_size, H, W) SLM patterns
         calculate_intensity_fn: Function to calculate intensity:
-            - If use_slm=False: (mode_dist, use_real_tm) -> intensity
-            - If use_slm=True: (slm_patterns, use_real_tm) -> intensity
-        use_slm: If True, plotting uses SLM patterns; if False, uses mode distributions
+            - (slm_patterns, use_real_tm) -> intensity
     """
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
     
@@ -590,9 +562,11 @@ def plot_training_history(history: Dict):
     mse_losses = history.get('mse_losses') or []
     tm_frobenius_error_aligned = history.get('tm_frobenius_error_aligned') or []
     learning_rates = history.get('learning_rates') or []
+    tm_norm = history.get('tm_norm') or []
     has_mse = len(mse_losses) > 0
     has_tm_error_aligned = len(tm_frobenius_error_aligned) > 0
     has_learning_rates = len(learning_rates) > 0
+    has_tm_norm = len(tm_norm) > 0
     
     fig, axes = plt.subplots(3, 2, figsize=(15, 15))
     
@@ -617,11 +591,14 @@ def plot_training_history(history: Dict):
         axes[0, 1].axis('off')
     
     # Plot TM norm
-    axes[1, 0].plot(history['tm_norm'], 'purple', linewidth=2, marker='d', markersize=4)
-    axes[1, 0].set_xlabel('Epoch')
-    axes[1, 0].set_ylabel('TM Norm')
-    axes[1, 0].set_title('Transmission Matrix Norm vs Epoch')
-    axes[1, 0].grid(True, alpha=0.3)
+    if has_tm_norm:
+        axes[1, 0].plot(tm_norm, 'purple', linewidth=2, marker='d', markersize=4)
+        axes[1, 0].set_xlabel('Epoch')
+        axes[1, 0].set_ylabel('TM Norm')
+        axes[1, 0].set_title('Transmission Matrix Norm vs Epoch')
+        axes[1, 0].grid(True, alpha=0.3)
+    else:
+        axes[1, 0].axis('off')
     
     # Plot TM Frobenius error
     if has_tm_error_aligned:
@@ -665,8 +642,9 @@ def plot_training_history(history: Dict):
         print(f"Initial MSE Loss: {mse_losses[0]:.6f}")
         print(f"Final MSE Loss: {mse_losses[-1]:.6f}")
     
-    print(f"Initial TM Norm: {history['tm_norm'][0]:.6f}")
-    print(f"Final TM Norm: {history['tm_norm'][-1]:.6f}")
+    if has_tm_norm:
+        print(f"Initial TM Norm: {tm_norm[0]:.6f}")
+        print(f"Final TM Norm: {tm_norm[-1]:.6f}")
     
     if has_tm_error_aligned:
         print(f"Initial TM Error (Phase-Aligned): {tm_frobenius_error_aligned[0]:.6f}")
