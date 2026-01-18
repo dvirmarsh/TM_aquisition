@@ -69,8 +69,8 @@ class TMMeasurementSystem:
             zernike_n_modes: Number of Zernike modes to use (default 12)
             lab_data: If True, use lab data instead of sampling a TM
             dx: Dictionary containing pixel sizes for each side
-                - 'tran_im': Pixel size in the transmission image plane
-                - 'tran_four': Pixel size in the transmission fourier plane
+                - 'im': Pixel size in the transmission image plane
+                - 'four': Pixel size in the transmission fourier plane
                 - 'slm': Pixel size of the SLM pattern
         """
         self.fiber_params = fiber_params
@@ -78,8 +78,8 @@ class TMMeasurementSystem:
         self.lab_data = lab_data
         if dx is None:
             dx = {
-                'tran_im': 1.0,
-                'tran_four': 1.0,
+                'im': 1.0,
+                'four': 1.0,
                 'slm': 1.0
             }
         self.dx = dx
@@ -132,7 +132,7 @@ class TMMeasurementSystem:
             self.mult_factor['tran'],
             image_plane_only=True
         )
-        
+        self.mode_powers = torch.sum(torch.abs(self.mode_fields[0, 0, :, :, :])**2 + torch.abs(self.mode_fields[0, 1, :, :, :])**2, dim=(0,1)) * self.dx['im']**2 # (N_modes,)
         # Sample real TM and initialization TM
         N_modes = len(self.guided_modes)
         print(f"Sampling transmission matrices for {N_modes} modes...")
@@ -217,7 +217,7 @@ class TMMeasurementSystem:
             E_y_flat = E_y_field.flatten()  # (H*W,)
             mode_fields_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
             # Project: sum(E_y * conj(mode_field)) over spatial grid
-            mode_amplitudes = torch.sum(E_y_flat.unsqueeze(1) * torch.conj(mode_fields_flat), dim=0) * self.dx['slm']**2 # (N_modes,)
+            mode_amplitudes = torch.sum(E_y_flat.unsqueeze(1) * torch.conj(mode_fields_flat), dim=0) * self.dx['im']**2 # (N_modes,)
             return mode_amplitudes
         else:
             # Batch: (batch, H, W)
@@ -225,7 +225,7 @@ class TMMeasurementSystem:
             E_y_flat = E_y_field.reshape(batch_size, -1)  # (batch, H*W)
             mode_fields_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
             # Project: sum(E_y * conj(mode_field)) over spatial grid for each batch
-            mode_amplitudes = torch.matmul(E_y_flat, torch.conj(mode_fields_flat)) * self.dx['slm']**2  # (batch, N_modes)
+            mode_amplitudes = torch.matmul(E_y_flat, torch.conj(mode_fields_flat)) * self.dx['im']**2 / self.mode_powers # (batch, N_modes)
             return mode_amplitudes.T  # (N_modes, batch)
     
     def calculate_fields_from_mode_dist(self, mode_distribution: torch.Tensor) -> torch.Tensor:
@@ -312,7 +312,7 @@ class TMMeasurementSystem:
             zernike_coeffs_fourier_domain = torch.zeros(self.zernike_n_modes, device=self.device)
         
         # Step 1: SLM pattern → y-polarized field
-        E_y_slm = torch.exp(1j * slm_pattern)/self.dx['slm']**2 # (batch, H, W)
+        E_y_slm = torch.exp(1j * slm_pattern) # (batch, H, W)
         
         # Step 2: Apply aberration before Fourier transform
         E_y_slm = self.zernike_layer(E_y_slm, zernike_coeffs_before_ft)  # (batch, H, W)
@@ -599,9 +599,16 @@ def optimize_tm_slm(
         for d in [zoomfft_slm, zoomfft_out_fwd, zoomfft_out_inv]:
             all_params += [v for k, v in d.items() if isinstance(v, nn.Parameter) and v.requires_grad]
         all_params += list(zernike_coeffs.values())
-
+    z_params = []
+    for d in [zoomfft_slm, zoomfft_out_fwd, zoomfft_out_inv]:
+        z_params += [v for k, v in d.items() if isinstance(v, nn.Parameter) and v.requires_grad]
     # --- 2. Setup Optimizer ---
     optimizer = optim.Adam(all_params, lr=learning_rate)
+    # optimizer = optim.Adam([
+    #     {'params': [optimized_tm], 'lr': 0.001}, # TM Learning Rate
+    #     {'params': z_params, 'lr': 0.001}, # Higher LR for aberrations
+    #     {'params': list(zernike_coeffs.values()), 'lr': 0.001}
+    # ])
     
     criterion = nn.L1Loss()
     planes_l = planes.lower()
@@ -751,8 +758,8 @@ def main():
         'tran': mult_factor_out
     }
     dx = {
-        'tran_im': dx_i,
-        'tran_four': dx_o,
+        'im': dx_i,
+        'four': dx_o,
         'slm': dx_o
     }
     # Initialize the system
@@ -790,7 +797,7 @@ def main():
         tm_system=tm_system,
         slm_patterns=slm_patterns,
         intensity_targets=intensity_measurements,
-        num_epochs=50,
+        num_epochs=100,
         learning_rate=0.001,
         batch_size=512,
         planes='both',
