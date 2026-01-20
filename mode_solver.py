@@ -153,7 +153,7 @@ def find_guided_modes(a, n1, n0, wavelength, plot_dispersion=False):
             plt.tight_layout()
             plt.show()
         m += 1
-        if m > 20: break # Safety break
+        # if m > 20: break # Safety break
 
     return guided_modes
 
@@ -262,7 +262,8 @@ if __name__ == '__main__':
     # --- Find Modes ---
     print("="*50 + "\n1. Finding Guided Modes\n" + "="*50)
     all_modes = find_guided_modes(
-        a=fiber_core_radius, n1=fiber_n_core, n0=fiber_n_cladding, wavelength=operating_wavelength
+        a=fiber_core_radius, n1=fiber_n_core, n0=fiber_n_cladding, wavelength=operating_wavelength,
+        plot_dispersion=False
     )
 
     print(f"\nFound {len(all_modes)} guided modes (including degeneracies).")
@@ -282,8 +283,14 @@ if __name__ == '__main__':
         except StopIteration:
             print("HE21 mode not found, plotting fundamental mode instead.")
             mode_to_plot_index = 0
-            
         chosen_mode = all_modes[mode_to_plot_index]
+        max_u = 0
+        for i,mode in enumerate(all_modes):
+            if mode['u'] > max_u:
+                max_u = mode['u']
+                chosen_mode = mode
+                mode_to_plot_index = i
+        print(f"Mode to plot index: {mode_to_plot_index}")
         print(f"Plotting Mode: LP_{chosen_mode['lp_m']}{chosen_mode['lp_l']} -> {chosen_mode['mode_type']}_{chosen_mode['n_order']}{chosen_mode['l_order']}")
 
         grid_size, plot_range = 200, fiber_core_radius * 3
@@ -297,7 +304,7 @@ if __name__ == '__main__':
 
         # Calculate Poynting Vector z-component: Sz = 1/2 Re(Er H_theta* - E_theta Hr*)
         Sz = 0.5 * np.real(cyl_fields['Er'] * np.conj(cyl_fields['H_theta']) - cyl_fields['E_theta'] * np.conj(cyl_fields['Hr']))
-        
+        # Sz = np.abs(cyl_fields['Er'])**2
         # Convert E-fields to Cartesian for vector plot
         theta = np.arctan2(Y, X)
         Ex = cyl_fields['Er'] * np.cos(theta) - cyl_fields['E_theta'] * np.sin(theta)

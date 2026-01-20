@@ -133,6 +133,40 @@ class TMMeasurementSystem:
             image_plane_only=True
         )
         self.mode_powers = torch.sum(torch.abs(self.mode_fields[0, 0, :, :, :])**2 + torch.abs(self.mode_fields[0, 1, :, :, :])**2, dim=(0,1)) * self.dx['im']**2 # (N_modes,)
+        
+        # Calculate sum of intensities inside the core for each mode
+        # Convert coordinate grids to torch tensors
+        X_torch = torch.tensor(self.X, device=self.device, dtype=torch.float32)
+        Y_torch = torch.tensor(self.Y, device=self.device, dtype=torch.float32)
+        
+        # Create mask for points inside the core (r <= a)
+        r = torch.sqrt(X_torch**2 + Y_torch**2)
+        core_mask = r <= self.fiber_params['a']  # (H, W)
+        
+        # Calculate intensity for each mode: |E_x|^2 + |E_y|^2 for image plane
+        # mode_fields shape: (2, 2, H, W, N_modes) where [0, 0] = image plane, E_x, [0, 1] = image plane, E_y
+        E_x = self.mode_fields[0, 0, :, :, :]  # (H, W, N_modes)
+        E_y = self.mode_fields[0, 1, :, :, :]  # (H, W, N_modes)
+        intensity = torch.abs(E_x)**2 + torch.abs(E_y)**2  # (H, W, N_modes)
+        
+        # Apply core mask and sum intensities inside the core for each mode
+        # Expand mask to match intensity dimensions: (H, W) -> (H, W, 1)
+        core_mask_expanded = core_mask.unsqueeze(-1)  # (H, W, 1)
+        
+        # Mask intensities: set values outside core to 0, then sum over spatial dimensions
+        intensity_masked = intensity * core_mask_expanded.float()  # (H, W, N_modes)
+        intensity_sum_per_mode = torch.sum(intensity_masked, dim=(0, 1))  # (N_modes,)
+        
+        # Find highest and lowest sum of intensities across all modes
+        if intensity_sum_per_mode.numel() > 0:
+            max_sum_intensity = torch.max(intensity_sum_per_mode).item()
+            min_sum_intensity = torch.min(intensity_sum_per_mode).item()
+            max_mode_idx = torch.argmax(intensity_sum_per_mode).item()
+            min_mode_idx = torch.argmin(intensity_sum_per_mode).item()
+            print(f"Sum of intensities inside core - Highest: {max_sum_intensity:.6e} (mode {max_mode_idx}), Lowest: {min_sum_intensity:.6e} (mode {min_mode_idx})")
+        else:
+            print("Warning: No modes found!")
+        
         # Sample real TM and initialization TM
         N_modes = len(self.guided_modes)
         print(f"Sampling transmission matrices for {N_modes} modes...")
