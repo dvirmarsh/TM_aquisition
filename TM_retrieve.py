@@ -30,7 +30,7 @@ from metrics_losses import (
 )
 
 
-class TMMeasurementSystem:
+class TMMeasurementSystem(nn.Module):
     """
     A class that handles the physical environment for transmission matrix measurements.
     
@@ -40,11 +40,18 @@ class TMMeasurementSystem:
     - Intensity calculations (I = |E_x|^2 + |E_y|^2)
     - Mode distribution sampling
     - Field calculations
+    
+    As an nn.Module, it contains learnable parameters for:
+    - Transmission matrix (optimized_tm)
+    - Zernike aberration coefficients (4 sets)
+    - ZoomFFT parameters (3 sets)
+    - SLM complex amplitude field
     """
     
     def __init__(self, fiber_params: Dict, grid_params: Dict, device: str = None,
                  mult_factor: Dict = None, zoomfft_params: Optional[Dict] = None, 
-                 zernike_n_modes: int = 8, lab_data: bool = False, dx: Dict = None):
+                 zernike_n_modes: int = 8, lab_data: bool = False, dx: Dict = None,
+                 enforce_symmetric_tm: bool = False):
         """
         Initialize the TM measurement system.
         
@@ -72,7 +79,10 @@ class TMMeasurementSystem:
                 - 'im': Pixel size in the transmission image plane
                 - 'four': Pixel size in the transmission fourier plane
                 - 'slm': Pixel size of the SLM pattern
+            enforce_symmetric_tm: If True, optimize only the lower-triangular TM
+                and reconstruct a symmetric TM as tm_tri + tm_tri.T during forward use.
         """
+        super().__init__()
         self.fiber_params = fiber_params
         self.grid_params = grid_params
         self.lab_data = lab_data
@@ -132,7 +142,9 @@ class TMMeasurementSystem:
             self.mult_factor['tran'],
             image_plane_only=True
         )
-        self.mode_powers = torch.sum(torch.abs(self.mode_fields[0, 0, :, :, :])**2 + torch.abs(self.mode_fields[0, 1, :, :, :])**2, dim=(0,1)) * self.dx['im']**2 # (N_modes,)
+        # Store n_order for each mode (same order as mode_fields last dimension)
+        self.mode_n_orders = [m['n_order'] for m in self.guided_modes]
+        self.mode_powers = torch.sum(torch.abs(self.mode_fields[0, 0, :, :, :])**2 + torch.abs(self.mode_fields[0, 1, :, :, :])**2, dim=(0,1)) # (N_modes,)
         
         # Calculate sum of intensities inside the core for each mode
         # Convert coordinate grids to torch tensors
@@ -141,32 +153,7 @@ class TMMeasurementSystem:
         
         # Create mask for points inside the core (r <= a)
         r = torch.sqrt(X_torch**2 + Y_torch**2)
-        core_mask = r <= self.fiber_params['a']  # (H, W)
-        
-        # Calculate intensity for each mode: |E_x|^2 + |E_y|^2 for image plane
-        # mode_fields shape: (2, 2, H, W, N_modes) where [0, 0] = image plane, E_x, [0, 1] = image plane, E_y
-        E_x = self.mode_fields[0, 0, :, :, :]  # (H, W, N_modes)
-        E_y = self.mode_fields[0, 1, :, :, :]  # (H, W, N_modes)
-        intensity = torch.abs(E_x)**2 + torch.abs(E_y)**2  # (H, W, N_modes)
-        
-        # Apply core mask and sum intensities inside the core for each mode
-        # Expand mask to match intensity dimensions: (H, W) -> (H, W, 1)
-        core_mask_expanded = core_mask.unsqueeze(-1)  # (H, W, 1)
-        
-        # Mask intensities: set values outside core to 0, then sum over spatial dimensions
-        intensity_masked = intensity * core_mask_expanded.float()  # (H, W, N_modes)
-        intensity_sum_per_mode = torch.sum(intensity_masked, dim=(0, 1))  # (N_modes,)
-        
-        # Find highest and lowest sum of intensities across all modes
-        if intensity_sum_per_mode.numel() > 0:
-            max_sum_intensity = torch.max(intensity_sum_per_mode).item()
-            min_sum_intensity = torch.min(intensity_sum_per_mode).item()
-            max_mode_idx = torch.argmax(intensity_sum_per_mode).item()
-            min_mode_idx = torch.argmin(intensity_sum_per_mode).item()
-            print(f"Sum of intensities inside core - Highest: {max_sum_intensity:.6e} (mode {max_mode_idx}), Lowest: {min_sum_intensity:.6e} (mode {min_mode_idx})")
-        else:
-            print("Warning: No modes found!")
-        
+ 
         # Sample real TM and initialization TM
         N_modes = len(self.guided_modes)
         print(f"Sampling transmission matrices for {N_modes} modes...")
@@ -181,7 +168,7 @@ class TMMeasurementSystem:
             )
         
         # Initialization TM (starting point for optimization)
-        self.optimized_tm = sample_tm_perturbed_mmf(
+        optimized_tm_init = sample_tm_perturbed_mmf(
             N_modes=N_modes,
             loss_parameter=1.0,  # Slightly different for initialization
             time_reversal_symmetry_broken=False,
@@ -189,9 +176,19 @@ class TMMeasurementSystem:
         )
         
         # Convert to torch tensors
+        # real_tm_tensor is registered as a buffer (not learnable, but moves with module)
         if not lab_data:
-            self.real_tm_tensor = torch.tensor(self.real_tm, dtype=torch.complex64, device=device)
-        self.optimized_tm_tensor = torch.tensor(self.optimized_tm, dtype=torch.complex64, device=device)
+            self.register_buffer('real_tm_tensor', torch.tensor(self.real_tm, dtype=torch.complex64, device=device))
+
+        # --- Optimized TM parameter (optionally symmetric) ---
+        self.enforce_symmetric_tm = enforce_symmetric_tm
+        if enforce_symmetric_tm:
+            self.register_buffer('tril_mask', torch.tril(torch.ones(N_modes, N_modes, device=device, dtype=torch.bool)))
+            init_tri = torch.tensor(optimized_tm_init, dtype=torch.complex64, device=device)
+            init_tri = torch.where(self.tril_mask, init_tri, torch.zeros_like(init_tri))
+            self._optimized_tm_param = nn.Parameter(init_tri)
+        else:
+            self._optimized_tm_param = nn.Parameter(torch.tensor(optimized_tm_init, dtype=torch.complex64, device=device))
         
         # Initialize aberration models
         H, W = grid_params['ny'], grid_params['nx']
@@ -226,51 +223,181 @@ class TMMeasurementSystem:
         
         self.zernike_n_modes = zernike_n_modes
         
+        # Initialize learnable Zernike coefficients (4 sets, all initialized to zero)
+        self.zernike_before_ft = nn.Parameter(torch.zeros(zernike_n_modes, device=self.device))
+        self.zernike_after_ft = nn.Parameter(torch.zeros(zernike_n_modes, device=self.device))
+        self.zernike_image_plane = nn.Parameter(torch.zeros(zernike_n_modes, device=self.device))
+        self.zernike_fourier_domain = nn.Parameter(torch.zeros(zernike_n_modes, device=self.device))
+        
+        # Initialize learnable ZoomFFT parameters (3 sets: slm, out_fwd, out_inv)
+        # gamma is fixed at 0, other params initialized to 1.0
+        def _create_zoomfft_param_dict():
+            return nn.ParameterDict({
+                's_a_x': nn.Parameter(torch.tensor(1.0, device=self.device)),
+                's_a_y': nn.Parameter(torch.tensor(1.0, device=self.device)),
+                's_n0': nn.Parameter(torch.tensor(1.0, device=self.device)),
+                's_m0': nn.Parameter(torch.tensor(1.0, device=self.device)),
+                's_k0': nn.Parameter(torch.tensor(1.0, device=self.device)),
+                's_l0': nn.Parameter(torch.tensor(1.0, device=self.device))
+            })
+        
+        self.zoomfft_slm_params = _create_zoomfft_param_dict()
+        self.zoomfft_out_fwd_params = _create_zoomfft_param_dict()
+        self.zoomfft_out_inv_params = _create_zoomfft_param_dict()
+        
+        # parameters for the polarization tilting
+        self.theta_before_slm = nn.Parameter(torch.tensor(0.0, device=self.device))  # not perfect x polarization
+        self.theta_after_slm = nn.Parameter(torch.tensor(0.0, device=self.device), requires_grad=True)  # tilting after SLM
+
+        # Fixed gamma parameter (not learnable)
+        self.register_buffer('gamma_fixed', torch.tensor(0.0, device=self.device))
+        
+        # When enforce_symmetric_tm is True, add Fourier-plane mode fields using transmission ZoomFFT
+        if self.enforce_symmetric_tm:
+            z_fwd = self._get_zoomfft_params_dict(self.zoomfft_out_fwd_params)
+            image_plane = self.mode_fields  # (1, 2, H, W, N_modes)
+            fields_for_fft = image_plane.permute(4, 0, 1, 2, 3)  # (N_modes, 1, 2, H, W)
+            fourier_plane = self.zoomfft['tran'](fields_for_fft, inverse=False, **z_fwd)  # (N_modes, 1, 2, H, W)
+            fourier_plane = fourier_plane * self.mult_factor['tran']
+            fourier_plane = fourier_plane.permute(1, 2, 3, 4, 0)  # (1, 2, H, W, N_modes)
+            # Detach to prevent stale computational graph during training
+            fourier_plane = fourier_plane.detach()
+            self.mode_fields = torch.cat([image_plane, fourier_plane], dim=0)  # (2, 2, H, W, N_modes)
+            self.register_buffer('mode_n_orders_tensor', torch.tensor(self.mode_n_orders, dtype=torch.float32, device=self.device))
+            self.output_tilt = nn.Parameter(torch.zeros(2, device=self.device))  # (2,) - tilt angles for each output plane
+            self.slm_tilt = nn.Parameter(torch.tensor(0.0, device=self.device))  # (1,) - SLM tilt angle
+        
+        # Initialize learnable SLM complex amplitude field (1 inside circle of radius 60, 0 outside)
+        # Create coordinate grids centered at (H/2, W/2)
+        y_coords = torch.arange(H, dtype=torch.float32, device=self.device) - (H - 1) / 2
+        x_coords = torch.arange(W, dtype=torch.float32, device=self.device) - (W - 1) / 2
+        Y, X = torch.meshgrid(y_coords, x_coords, indexing='ij')
+        # Calculate distance from center
+        r = torch.sqrt(X**2 + Y**2)
+        # Create mask: 1 inside circle (r <= 60), 0 outside
+        circle_mask = (r <= 60.0).to(torch.complex64)
+        self.slm_complex_amplitude = nn.Parameter(circle_mask)
+        
         print(f"System initialized with {N_modes} guided modes")
         print(f"Grid size: {grid_params['nx']} x {grid_params['ny']}")
         print(f"Aberration models initialized: ZoomFFT and {zernike_n_modes} Zernike modes")
     
-    def project_field_to_modes(self, E_y_field: torch.Tensor) -> torch.Tensor:
+    @property
+    def optimized_tm_tensor(self) -> torch.Tensor:
+        """Backward compatibility property for optimized_tm_tensor."""
+        return self.optimized_tm
+    
+    @optimized_tm_tensor.setter
+    def optimized_tm_tensor(self, value: torch.Tensor):
+        """Backward compatibility setter for optimized_tm_tensor."""
+        if self.enforce_symmetric_tm:
+            # Store only the lower triangle; upper is ignored
+            value_tri = torch.where(self.tril_mask, value, torch.zeros_like(value))
+            self._optimized_tm_param.data = value_tri
+        else:
+            self._optimized_tm_param.data = value
+
+    @property
+    def optimized_tm(self) -> torch.Tensor:
         """
-        Project a y-polarized field onto image plane mode fields to get mode distribution.
+        Return the current optimized TM.
+        If enforce_symmetric_tm is True, reconstruct as TM_tri + TM_tri.T
+        (diagonal is intentionally doubled to match requested behavior).
+        """
+        if self.enforce_symmetric_tm:
+            tri = torch.tril(self._optimized_tm_param)
+            return tri + tri.transpose(-2, -1)
+        return self._optimized_tm_param
+    
+    def project_field_to_modes(self, E_field: torch.Tensor) -> torch.Tensor:
+        """
+        Project a field onto image plane mode fields to get mode distribution.
+        Supports both single polarization (E_y only) and both polarizations (E_x, E_y).
         
         Args:
-            E_y_field: Field in image plane, shape (H, W) or (batch, H, W)
+            E_field: Field in image plane, shape:
+                - (H, W) or (batch, H, W) for y-polarized field (backward compatible)
+                - (batch, 2, H, W) for both x and y polarizations
+                - (2, H, W) for both x and y polarizations (single batch)
             
         Returns:
             torch.Tensor: Mode amplitudes, shape (N_modes,) or (N_modes, batch)
         """
-        # Get image plane y-component mode fields: (H, W, N_modes)
-        # mode_fields shape: (2, 2, H, W, N_modes) where [0, 1] = image plane, y-component
+        # Get image plane mode fields: (H, W, N_modes)
+        # mode_fields shape: (1, 2, H, W, N_modes) where [0, 0] = E_x, [0, 1] = E_y
+        mode_fields_x = self.mode_fields[0, 0, :, :, :]  # (H, W, N_modes)
         mode_fields_y = self.mode_fields[0, 1, :, :, :]  # (H, W, N_modes)
-        N_modes = mode_fields_y.shape[2]
+        N_modes = mode_fields_x.shape[2]
         
-        # Handle batch dimension
-        if E_y_field.dim() == 2:
-            # Single field: (H, W)
-            E_y_flat = E_y_field.flatten()  # (H*W,)
-            mode_fields_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
-            # Project: sum(E_y * conj(mode_field)) over spatial grid
-            mode_amplitudes = torch.sum(E_y_flat.unsqueeze(1) * torch.conj(mode_fields_flat), dim=0) * self.dx['im']**2 # (N_modes,)
-            return mode_amplitudes
-        else:
-            # Batch: (batch, H, W)
-            batch_size = E_y_field.shape[0]
-            E_y_flat = E_y_field.reshape(batch_size, -1)  # (batch, H*W)
-            mode_fields_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
-            # Project: sum(E_y * conj(mode_field)) over spatial grid for each batch
-            mode_amplitudes = torch.matmul(E_y_flat, torch.conj(mode_fields_flat)) * self.dx['im']**2 / self.mode_powers # (batch, N_modes)
+        # Check if input has both polarizations (shape includes dimension for E_x/E_y)
+        has_both_polarizations = (E_field.dim() == 4 and E_field.shape[-3] == 2) or (E_field.dim() == 3 and E_field.shape[0] == 2)
+        
+        if has_both_polarizations:
+            # Both polarizations provided: (batch, 2, H, W) or (2, H, W)
+            if E_field.dim() == 3:
+                # Single batch: (2, H, W) -> add batch dimension
+                E_field = E_field.unsqueeze(0)  # (1, 2, H, W)
+                single_batch = True
+            else:
+                single_batch = False
+            
+            batch_size = E_field.shape[0]
+            E_x = E_field[:, 0, :, :]  # (batch, H, W)
+            E_y = E_field[:, 1, :, :]  # (batch, H, W)
+            
+            # Flatten fields
+            E_x_flat = E_x.reshape(batch_size, -1)  # (batch, H*W)
+            E_y_flat = E_y.reshape(batch_size, -1)  # (batch, H*W)
+            mode_fields_x_flat = mode_fields_x.reshape(-1, N_modes)  # (H*W, N_modes)
+            mode_fields_y_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
+            
+            # Project both components: sum(E_x * conj(mode_field_x) + E_y * conj(mode_field_y))
+            mode_amplitudes_x = torch.matmul(E_x_flat, torch.conj(mode_fields_x_flat))  # (batch, N_modes)
+            mode_amplitudes_y = torch.matmul(E_y_flat, torch.conj(mode_fields_y_flat))  # (batch, N_modes)
+            mode_amplitudes = (mode_amplitudes_x + mode_amplitudes_y) / self.mode_powers  # (batch, N_modes)
+            
+            if single_batch:
+                return mode_amplitudes.squeeze(0).T  # (N_modes,)
             return mode_amplitudes.T  # (N_modes, batch)
+        else:
+            # Backward compatibility: only y-polarization (H, W) or (batch, H, W)
+            # Handle batch dimension
+            if E_field.dim() == 2:
+                # Single field: (H, W)
+                E_y_flat = E_field.flatten()  # (H*W,)
+                mode_fields_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
+                # Project: sum(E_y * conj(mode_field)) over spatial grid
+                mode_amplitudes = torch.sum(E_y_flat.unsqueeze(1) * torch.conj(mode_fields_flat), dim=0) / self.mode_powers # (N_modes,)
+                return mode_amplitudes
+            else:
+                # Batch: (batch, H, W)
+                batch_size = E_field.shape[0]
+                E_y_flat = E_field.reshape(batch_size, -1)  # (batch, H*W)
+                mode_fields_flat = mode_fields_y.reshape(-1, N_modes)  # (H*W, N_modes)
+                # Project: sum(E_y * conj(mode_field)) over spatial grid for each batch
+                mode_amplitudes = torch.matmul(E_y_flat, torch.conj(mode_fields_flat)) / self.mode_powers # (batch, N_modes)
+                return mode_amplitudes.T  # (N_modes, batch)
     
     def calculate_fields_from_mode_dist(self, mode_distribution: torch.Tensor) -> torch.Tensor:
         """
         Calculate complex electric fields (E_x, E_y) directly from mode distribution (no TM applied).
         
         Args:
-            mode_distribution: Tensor of shape (N_modes, batch_size)
+            mode_distribution: Tensor of shape (N_modes, batch_size) or (2, N_modes, batch_size)
+                for two-plane mode dist (used when enforce_symmetric_tm and mode_fields has 2 planes).
         Returns:
             torch.Tensor: (batch_size, P, 2, H, W) where P is number of planes (1 or 2), 2 is (E_x, E_y)
         """
+        if mode_distribution.dim() == 3 and mode_distribution.shape[0] == 2:
+            # (2, N_modes, batch) -> use both planes of mode_fields, return (batch, 2, 2, H, W)
+            # Batched matmul: (2, C*H*W, N_modes) @ (2, N_modes, batch) -> (2, C*H*W, batch)
+            selected_fields = self.mode_fields.contiguous()  # (2, 2, H, W, N_modes)
+            C, H, W, N_modes = selected_fields.shape[1], selected_fields.shape[2], selected_fields.shape[3], selected_fields.shape[4]
+            batch_size = mode_distribution.shape[2]
+            field_matrix = selected_fields.view(2, C * H * W, N_modes)  # (2, C*H*W, N_modes)
+            total_fields_flat = torch.bmm(field_matrix, mode_distribution)  # (2, C*H*W, batch)
+            total_fields = total_fields_flat.view(2, C, H, W, batch_size).permute(4, 0, 1, 2, 3)  # (batch, 2, 2, H, W)
+            return total_fields
         selected_fields = self.mode_fields[0:1]
         selected_fields = selected_fields.contiguous()
         P, C, H, W, N_modes = selected_fields.shape
@@ -281,36 +408,57 @@ class TMMeasurementSystem:
         total_fields = total_fields.permute(4, 0, 1, 2, 3)
         return total_fields
     
+    def _get_zoomfft_params_dict(self, param_dict: nn.ParameterDict) -> Dict:
+        """Convert nn.ParameterDict to regular dict with gamma included."""
+        return {
+            's_a_x': param_dict['s_a_x'],
+            's_a_y': param_dict['s_a_y'],
+            'gamma': self.gamma_fixed,
+            's_n0': param_dict['s_n0'],
+            's_m0': param_dict['s_m0'],
+            's_k0': param_dict['s_k0'],
+            's_l0': param_dict['s_l0']
+        }
+    
     def forward_model_slm(
         self,
         slm_pattern: torch.Tensor,
-        tm: torch.Tensor,
+        tm: Optional[torch.Tensor] = None,
+        use_internal_params: bool = True,
         zoomfft_params_slm: Optional[Dict] = None,
         zoomfft_params_output_forward: Optional[Dict] = None,
         zoomfft_params_output_inverse: Optional[Dict] = None,
         zernike_coeffs_before_ft: Optional[torch.Tensor] = None,
         zernike_coeffs_after_ft: Optional[torch.Tensor] = None,
         zernike_coeffs_image_plane: Optional[torch.Tensor] = None,
-        zernike_coeffs_fourier_domain: Optional[torch.Tensor] = None
+        zernike_coeffs_fourier_domain: Optional[torch.Tensor] = None,
+        apply_slm_amplitude: bool = True
     ) -> torch.Tensor:
         """
         Forward model: SLM pattern → intensities (image and Fourier planes).
         Uses ZoomFFT for all Fourier transforms (batched, supports arbitrary leading dimensions).
         
+        The model includes polarization aberrations:
+        - Before SLM: Field is split into x and y components based on theta_before_slm
+          (x = cos(theta_before), y = sin(theta_before)). Only x-component is modulated by SLM.
+        - After SLM: Polarization is rotated by theta_after_slm before projection to modes.
+        
         Args:
             slm_pattern: SLM phase pattern, shape (H, W) or (batch, H, W)
-            tm: Transmission matrix to use, shape (N_modes, N_modes)
+            tm: Transmission matrix to use, shape (N_modes, N_modes). If None, uses self.optimized_tm
+            use_internal_params: If True, use internal learnable parameters (Zernike, ZoomFFT).
+                                If False, use provided external parameters (for simulation).
             zoomfft_params_slm: ZoomFFT parameters for SLM→Fourier transform
                 Dict with keys: s_a_x, s_a_y, gamma, s_n0, s_m0, s_k0, s_l0
-                If None, uses non-aberrative values (all 1.0 except gamma=0.0)
+                If None and use_internal_params=True, uses internal params.
+                If None and use_internal_params=False, uses non-aberrative values.
             zoomfft_params_output_forward: ZoomFFT parameters for output image→Fourier
-                If None, uses non-aberrative values
             zoomfft_params_output_inverse: ZoomFFT parameters for Fourier→image (inverse)
-                If None, uses non-aberrative values
             zernike_coeffs_before_ft: Zernike coefficients before FT, shape (n_modes,)
             zernike_coeffs_after_ft: Zernike coefficients after FT, shape (n_modes,)
             zernike_coeffs_image_plane: Zernike coefficients in image plane, shape (n_modes,)
             zernike_coeffs_fourier_domain: Zernike coefficients in Fourier domain, shape (n_modes,)
+            apply_slm_amplitude: If True, multiply by learnable slm_complex_amplitude (default True)
             
         Returns:
             torch.Tensor: Intensities, shape (batch, 2, H, W) where [:, 0] = image plane, [:, 1] = Fourier plane
@@ -324,71 +472,130 @@ class TMMeasurementSystem:
         
         batch_size, H, W = slm_pattern.shape
         
-        # Default non-aberrative parameters
-        default_zoomfft_params = {
-            's_a_x': 1.0, 's_a_y': 1.0, 'gamma': 0.0,
-            's_n0': 1.0, 's_m0': 1.0, 's_k0': 1.0, 's_l0': 1.0
-        }
-        if zoomfft_params_slm is None:
-            zoomfft_params_slm = default_zoomfft_params
-        if zoomfft_params_output_forward is None:
-            zoomfft_params_output_forward = default_zoomfft_params
-        if zoomfft_params_output_inverse is None:
-            zoomfft_params_output_inverse = default_zoomfft_params
+        # Use internal optimized_tm if tm not provided
+        if tm is None:
+            tm = self.optimized_tm
         
-        if zernike_coeffs_before_ft is None:
-            zernike_coeffs_before_ft = torch.zeros(self.zernike_n_modes, device=self.device)
-        if zernike_coeffs_after_ft is None:
-            zernike_coeffs_after_ft = torch.zeros(self.zernike_n_modes, device=self.device)
-        if zernike_coeffs_image_plane is None:
-            zernike_coeffs_image_plane = torch.zeros(self.zernike_n_modes, device=self.device)
-        if zernike_coeffs_fourier_domain is None:
-            zernike_coeffs_fourier_domain = torch.zeros(self.zernike_n_modes, device=self.device)
+        # Resolve parameters based on use_internal_params flag
+        if use_internal_params:
+            # Use internal learnable parameters
+            if zoomfft_params_slm is None:
+                zoomfft_params_slm = self._get_zoomfft_params_dict(self.zoomfft_slm_params)
+            if zoomfft_params_output_forward is None:
+                zoomfft_params_output_forward = self._get_zoomfft_params_dict(self.zoomfft_out_fwd_params)
+            if zoomfft_params_output_inverse is None:
+                zoomfft_params_output_inverse = self._get_zoomfft_params_dict(self.zoomfft_out_inv_params)
+            if zernike_coeffs_before_ft is None:
+                zernike_coeffs_before_ft = self.zernike_before_ft
+            if zernike_coeffs_after_ft is None:
+                zernike_coeffs_after_ft = self.zernike_after_ft
+            if zernike_coeffs_image_plane is None:
+                zernike_coeffs_image_plane = self.zernike_image_plane
+            if zernike_coeffs_fourier_domain is None:
+                zernike_coeffs_fourier_domain = self.zernike_fourier_domain
+        else:
+            # Use non-aberrative defaults for simulation
+            default_zoomfft_params = {
+                's_a_x': 1.0, 's_a_y': 1.0, 'gamma': 0.0,
+                's_n0': 1.0, 's_m0': 1.0, 's_k0': 1.0, 's_l0': 1.0
+            }
+            if zoomfft_params_slm is None:
+                zoomfft_params_slm = default_zoomfft_params
+            if zoomfft_params_output_forward is None:
+                zoomfft_params_output_forward = default_zoomfft_params
+            if zoomfft_params_output_inverse is None:
+                zoomfft_params_output_inverse = default_zoomfft_params
+            if zernike_coeffs_before_ft is None:
+                zernike_coeffs_before_ft = torch.zeros(self.zernike_n_modes, device=self.device)
+            if zernike_coeffs_after_ft is None:
+                zernike_coeffs_after_ft = torch.zeros(self.zernike_n_modes, device=self.device)
+            if zernike_coeffs_image_plane is None:
+                zernike_coeffs_image_plane = torch.zeros(self.zernike_n_modes, device=self.device)
+            if zernike_coeffs_fourier_domain is None:
+                zernike_coeffs_fourier_domain = torch.zeros(self.zernike_n_modes, device=self.device)
         
-        # Step 1: SLM pattern → y-polarized field
-        E_y_slm = torch.exp(1j * slm_pattern) # (batch, H, W)
+        # Step 1: Start with unit field, split polarization before SLM
+        # The field hitting the SLM is divided: x = cos(theta_before), y = sin(theta_before)
+        cos_theta_before = torch.cos(self.theta_before_slm)
+        sin_theta_before = torch.sin(self.theta_before_slm)
         
-        # Step 2: Apply aberration before Fourier transform
-        E_y_slm = self.zernike_layer(E_y_slm, zernike_coeffs_before_ft)  # (batch, H, W)
+        # Create initial field with both polarizations
+        E_field_slm = torch.zeros(batch_size, 2, H, W, dtype=torch.complex64, device=self.device)
+        E_field_slm[:, 0, :, :] = cos_theta_before  # x-polarization
+        E_field_slm[:, 1, :, :] = sin_theta_before  # y-polarization
         
-        # Step 3: Fourier transform (SLM plane → Fourier plane = fiber input)
-        # ZoomFFT supports batched input via broadcasting
-        # Multiply by mult_factor_slm for correct scaling
-        E_y_fourier = self.zoomfft['slm'](E_y_slm, inverse=False, **zoomfft_params_slm)# * self.mult_factor['slm']  # (batch, H, W)
+        # Step 2: Only x-polarization is modulated by SLM pattern
+        E_field_slm[:, 0, :, :] = E_field_slm[:, 0, :, :] * torch.exp(1j * slm_pattern)  # (batch, H, W)
         
-        # Step 4: Apply aberration after Fourier transform
+        # Step 3: Apply aberration before Fourier transform (both polarizations)
+        E_field_slm = self.zernike_layer(E_field_slm, zernike_coeffs_before_ft)  # (batch, 2, H, W)
+        
+        # Step 3.5: Apply learnable SLM complex amplitude (both polarizations)
+        if apply_slm_amplitude:
+            E_field_slm = E_field_slm * self.slm_complex_amplitude.unsqueeze(0).unsqueeze(0)  # (batch, 2, H, W)
+        
+        # Step 3.6: Rotate polarization by theta_after_slm (before Fourier transform)
+        # Rotation matrix: [E_x_new]   [cos(θ)  -sin(θ)] [E_x]
+        #                  [E_y_new] = [sin(θ)   cos(θ)] [E_y]
+        cos_theta_after = torch.cos(self.theta_after_slm)
+        sin_theta_after = torch.sin(self.theta_after_slm)
+        E_x_slm = E_field_slm[:, 0, :, :]  # (batch, H, W)
+        E_y_slm = E_field_slm[:, 1, :, :]  # (batch, H, W)
+        E_x_slm_rotated = cos_theta_after * E_x_slm - sin_theta_after * E_y_slm
+        E_y_slm_rotated = sin_theta_after * E_x_slm + cos_theta_after * E_y_slm
+        
+        # Step 4: Fourier transform (SLM plane → Fourier plane = fiber input) for both polarizations
+        E_x_fourier = self.zoomfft['slm'](E_x_slm_rotated, inverse=False, **zoomfft_params_slm)  # (batch, H, W)
+        E_y_fourier = self.zoomfft['slm'](E_y_slm_rotated, inverse=False, **zoomfft_params_slm)  # (batch, H, W)
+        
+        # Step 5: Apply aberration after Fourier transform (both polarizations separately)
+        E_x_fourier = self.zernike_layer(E_x_fourier, zernike_coeffs_after_ft)  # (batch, H, W)
         E_y_fourier = self.zernike_layer(E_y_fourier, zernike_coeffs_after_ft)  # (batch, H, W)
         
-        # Step 5: Project onto image plane mode fields to get input mode distribution
-        input_mode_dist = self.project_field_to_modes(E_y_fourier)  # (N_modes, batch)
+        # Combine into (batch, 2, H, W) for projection
+        E_input_fourier = torch.stack([E_x_fourier, E_y_fourier], dim=1)  # (batch, 2, H, W)
         
-        # Step 6: Apply TM to get output mode distribution
+        # Step 7: Project onto image plane mode fields to get input mode distribution
+        input_mode_dist = self.project_field_to_modes(E_input_fourier)  # (N_modes, batch)
+        if self.enforce_symmetric_tm:
+            input_mode_dist = input_mode_dist * torch.exp(1j * self.mode_n_orders_tensor.unsqueeze(1) * self.slm_tilt)
+        # Step 8: Apply TM to get output mode distribution
         output_mode_dist = torch.matmul(tm, input_mode_dist)  # (N_modes, batch)
         
-        # Step 7: Calculate output fields in image plane directly from output mode distribution
-        output_fields_image = self.calculate_fields_from_mode_dist(output_mode_dist)
-        # output_fields_image shape: (batch, 1, 2, H, W) [plane, E_x/E_y]
-        E_output = output_fields_image[:, 0, :, :, :]  # (batch, 2, H, W)
-        
-        # Step 8: Apply aberration in image plane (both polarizations at once)
-        E_output = self.zernike_layer(E_output, zernike_coeffs_image_plane)  # (batch, 2, H, W)
-        
-        # Step 9: Fourier transform → Fourier plane (both polarizations at once)
-        # Multiply by mult_factor_out for correct scaling
-        E_fourier = self.zoomfft['tran'](E_output, inverse=False, **zoomfft_params_output_forward) * self.mult_factor['tran']  # (batch, 2, H, W)
-        
-        # Step 10: Calculate Fourier plane intensity
-        I_fourier = torch.abs(E_fourier[:, 0])**2 + torch.abs(E_fourier[:, 1])**2  # (batch, H, W)
-        
-        # Step 11: Apply aberration in Fourier domain (both polarizations at once)
-        E_fourier = self.zernike_layer(E_fourier, zernike_coeffs_fourier_domain)  # (batch, 2, H, W)
-        
-        # Step 12: Inverse Fourier transform → image plane (both polarizations at once)
-        # Divide by mult_factor_out for energy conservation
-        E_image = self.zoomfft['tran'](E_fourier, inverse=True, **zoomfft_params_output_inverse) / self.mult_factor['tran']  # (batch, 2, H, W)
-        
-        # Step 13: Calculate image plane intensity
-        I_image = torch.abs(E_image[:, 0])**2 + torch.abs(E_image[:, 1])**2  # (batch, H, W)
+        if self.enforce_symmetric_tm:
+            # Two-plane mode dist (2, N_modes, batch) with per-plane tilting (repeat so we can assign different tilts per plane)
+            output_mode_dist = output_mode_dist.unsqueeze(0)#.repeat(2, 1, 1)  # (2, N_modes, batch)
+            phase = self.mode_n_orders_tensor.unsqueeze(1) * self.output_tilt  # (N_modes, 2)
+            output_mode_dist = output_mode_dist * torch.exp(1j * phase.permute(1, 0).unsqueeze(2))  # (2, N_modes, batch)
+            # Step 9 (symmetric): Fields in both planes from (2, N_modes, batch)
+            output_fields_both = self.calculate_fields_from_mode_dist(output_mode_dist)  # (batch, 2, 2, H, W)
+            E_image_plane = output_fields_both[:, 0, :, :, :]  # (batch, 2, H, W) - field in image plane from plane-0 mode dist
+            E_fourier_plane = output_fields_both[:, 1, :, :, :]  # (batch, 2, H, W) - field in Fourier plane from plane-1 mode dist
+            # Path 1: Image-plane field → aberration → ZoomFFT forward → Fourier intensity
+            E_image_plane = self.zernike_layer(E_image_plane, zernike_coeffs_image_plane)  # (batch, 2, H, W)
+            E_fourier_from_image = self.zoomfft['tran'](E_image_plane, inverse=False, **zoomfft_params_output_forward) * self.mult_factor['tran']  # (batch, 2, H, W)
+            I_fourier = torch.abs(E_fourier_from_image[:, 0])**2 + torch.abs(E_fourier_from_image[:, 1])**2  # (batch, H, W)
+            # Path 2: Fourier-plane field → aberration → ZoomFFT inverse → image intensity
+            E_fourier_plane = self.zernike_layer(E_fourier_plane, zernike_coeffs_fourier_domain)  # (batch, 2, H, W)
+            E_image_from_fourier = self.zoomfft['tran'](E_fourier_plane, inverse=True, **zoomfft_params_output_inverse) / self.mult_factor['tran']  # (batch, 2, H, W)
+            I_image = torch.abs(E_image_from_fourier[:, 0])**2 + torch.abs(E_image_from_fourier[:, 1])**2  # (batch, H, W)
+        else:
+            # Step 9: Calculate output fields in image plane directly from output mode distribution
+            output_fields_image = self.calculate_fields_from_mode_dist(output_mode_dist)
+            # output_fields_image shape: (batch, 1, 2, H, W) [plane, E_x/E_y]
+            E_output = output_fields_image[:, 0, :, :, :]  # (batch, 2, H, W)
+            # Step 10: Apply aberration in image plane (both polarizations at once)
+            E_output = self.zernike_layer(E_output, zernike_coeffs_image_plane)  # (batch, 2, H, W)
+            # Step 11: Fourier transform → Fourier plane (both polarizations at once)
+            E_fourier = self.zoomfft['tran'](E_output, inverse=False, **zoomfft_params_output_forward) * self.mult_factor['tran']  # (batch, 2, H, W)
+            # Step 12: Calculate Fourier plane intensity
+            I_fourier = torch.abs(E_fourier[:, 0])**2 + torch.abs(E_fourier[:, 1])**2  # (batch, H, W)
+            # Step 13: Apply aberration in Fourier domain (both polarizations at once)
+            E_fourier = self.zernike_layer(E_fourier, zernike_coeffs_fourier_domain)  # (batch, 2, H, W)
+            # Step 14: Inverse Fourier transform → image plane (both polarizations at once)
+            E_image = self.zoomfft['tran'](E_fourier, inverse=True, **zoomfft_params_output_inverse) / self.mult_factor['tran']  # (batch, 2, H, W)
+            # Step 15: Calculate image plane intensity
+            I_image = torch.abs(E_image[:, 0])**2 + torch.abs(E_image[:, 1])**2  # (batch, H, W)
         
         # Combine intensities: (batch, 2, H, W)
         intensities = torch.stack([I_image, I_fourier], dim=1)  # (batch, 2, H, W)
@@ -475,9 +682,12 @@ class TMMeasurementSystem:
             unknown_aberrations = self.sample_unknown_aberrations()
             
             # Calculate measurements using forward model with real TM and unknown aberrations
+            # use_internal_params=False to avoid using learnable parameters for simulation
             intensity_measurements = self.forward_model_slm(
                 slm_patterns,
-                self.real_tm_tensor,
+                tm=self.real_tm_tensor,
+                use_internal_params=False,
+                apply_slm_amplitude=False,
                 zoomfft_params_slm=unknown_aberrations['zoomfft_params_slm'],
                 zoomfft_params_output_forward=unknown_aberrations['zoomfft_params_output_forward'],
                 zoomfft_params_output_inverse=unknown_aberrations['zoomfft_params_output_inverse'],
@@ -488,10 +698,12 @@ class TMMeasurementSystem:
             )
         else:
             # No aberrations - use identity ZoomFFT params and zero Zernike coeffs
+            # use_internal_params=False to avoid using learnable parameters for simulation
             intensity_measurements = self.forward_model_slm(
                 slm_patterns,
-                self.real_tm_tensor
-                # All aberration params default to non-aberrative values
+                tm=self.real_tm_tensor,
+                use_internal_params=False,
+                apply_slm_amplitude=False
             )
         
         return slm_patterns, intensity_measurements
@@ -510,14 +722,14 @@ class TMMeasurementSystem:
         
         # Calculate intensity from SLM patterns
         def calculate_intensity_slm_fn(slm_patterns, use_real_tm):
-            tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
+            tm = self.real_tm_tensor if use_real_tm else self.optimized_tm
             # Use forward_model_slm with no aberrations for evaluation
-            intensities = self.forward_model_slm(slm_patterns, tm)
+            intensities = self.forward_model_slm(slm_patterns, tm, use_internal_params=False, apply_slm_amplitude=False)
             return intensities
         
         return metrics_evaluate_reconstruction(
             self.real_tm_tensor,
-            self.optimized_tm_tensor,
+            self.optimized_tm,
             sample_slm_fn,
             calculate_intensity_slm_fn,
         )
@@ -537,9 +749,9 @@ class TMMeasurementSystem:
         
         # Calculate intensity from SLM patterns
         def calculate_intensity_slm_fn(slm_patterns, use_real_tm):
-            tm = self.real_tm_tensor if use_real_tm else self.optimized_tm_tensor
+            tm = self.real_tm_tensor if use_real_tm else self.optimized_tm
             # Use forward_model_slm with no aberrations for plotting
-            intensities = self.forward_model_slm(slm_patterns, tm)
+            intensities = self.forward_model_slm(slm_patterns, tm, use_internal_params=False, apply_slm_amplitude=False)
             return intensities
         
         utils_plot_results(
@@ -593,56 +805,52 @@ def optimize_tm_slm(
     optimize_aberrations: bool = True
 ) -> Dict:
     """
-    Optimize TM and Aberrations using Adam with Full Epoch Gradient Accumulation.
-    (Takes 1 step per epoch using the average gradient of the entire dataset).
+    Optimize TM and Aberrations using Adam optimizer.
+    
+    Uses the TMMeasurementSystem's internal nn.Parameters directly:
+    - optimized_tm: Transmission matrix
+    - zernike_*: Zernike aberration coefficients (4 sets)
+    - zoomfft_*_params: ZoomFFT parameters (3 sets)
+    - slm_complex_amplitude: Complex amplitude at SLM plane
+    - theta_before_slm: Polarization angle before SLM (splits x/y polarization)
+    - theta_after_slm: Polarization rotation angle after SLM
+    
+    Args:
+        tm_system: TMMeasurementSystem nn.Module with learnable parameters
+        slm_patterns: SLM phase patterns, shape (num_measurements, H, W)
+        intensity_targets: Target intensities, shape (num_measurements, 2, H, W)
+        num_epochs: Number of optimization epochs
+        learning_rate: Learning rate for Adam optimizer
+        batch_size: Batch size for mini-batch gradient descent
+        planes: Which planes to use for loss ('image', 'fourier', or 'both')
+        optimize_aberrations: If True, optimize all parameters. If False, only optimize TM.
+    
+    Returns:
+        Dict containing training history
     """
-    print(f"Starting Adam Optimization (Full Batch / Gradient Accumulation). Optimize Aberrations: {optimize_aberrations}")
+    print(f"Starting Adam Optimization. Optimize Aberrations: {optimize_aberrations}")
     
-    # --- 1. Initialize Parameters ---
-    optimized_tm = nn.Parameter(tm_system.optimized_tm_tensor.clone())
+    # --- 1. Configure which parameters to optimize ---
+    # TM is always optimized
+    tm_system._optimized_tm_param.requires_grad_(True)
+    tm_system.slm_complex_amplitude.requires_grad_(True)
     
-    # Helper for ZoomFFT parameters
-    def _create_zoomfft_params(optimizable: bool):
-        grad = optimizable
-        return {
-            's_a_x': nn.Parameter(torch.tensor(1.0, device=tm_system.device, requires_grad=grad)),
-            's_a_y': nn.Parameter(torch.tensor(1.0, device=tm_system.device, requires_grad=grad)),
-            'gamma': torch.tensor(0.0, device=tm_system.device), # Fixed
-            's_n0': nn.Parameter(torch.tensor(1.0, device=tm_system.device, requires_grad=grad)),
-            's_m0': nn.Parameter(torch.tensor(1.0, device=tm_system.device, requires_grad=grad)),
-            's_k0': nn.Parameter(torch.tensor(1.0, device=tm_system.device, requires_grad=grad)),
-            's_l0': nn.Parameter(torch.tensor(1.0, device=tm_system.device, requires_grad=grad))
-        }
-
-    # Initialize Params
-    zoomfft_slm = _create_zoomfft_params(optimize_aberrations)
-    zoomfft_out_fwd = _create_zoomfft_params(optimize_aberrations)
-    zoomfft_out_inv = _create_zoomfft_params(optimize_aberrations)
+    # Aberration parameters are controlled by the flag
+    for param in [tm_system.zernike_before_ft, tm_system.zernike_after_ft,
+                  tm_system.zernike_image_plane, tm_system.zernike_fourier_domain]:
+        param.requires_grad_(optimize_aberrations)
     
-    requires_grad = optimize_aberrations
-    zernike_coeffs = {
-        'before': nn.Parameter(torch.zeros(tm_system.zernike_n_modes, device=tm_system.device, requires_grad=requires_grad)),
-        'after': nn.Parameter(torch.zeros(tm_system.zernike_n_modes, device=tm_system.device, requires_grad=requires_grad)),
-        'image': nn.Parameter(torch.zeros(tm_system.zernike_n_modes, device=tm_system.device, requires_grad=requires_grad)),
-        'fourier': nn.Parameter(torch.zeros(tm_system.zernike_n_modes, device=tm_system.device, requires_grad=requires_grad))
-    }
-
-    # Collect optimizable parameters
-    all_params = [optimized_tm]
-    if optimize_aberrations:
-        for d in [zoomfft_slm, zoomfft_out_fwd, zoomfft_out_inv]:
-            all_params += [v for k, v in d.items() if isinstance(v, nn.Parameter) and v.requires_grad]
-        all_params += list(zernike_coeffs.values())
-    z_params = []
-    for d in [zoomfft_slm, zoomfft_out_fwd, zoomfft_out_inv]:
-        z_params += [v for k, v in d.items() if isinstance(v, nn.Parameter) and v.requires_grad]
-    # --- 2. Setup Optimizer ---
-    optimizer = optim.Adam(all_params, lr=learning_rate)
-    # optimizer = optim.Adam([
-    #     {'params': [optimized_tm], 'lr': 0.001}, # TM Learning Rate
-    #     {'params': z_params, 'lr': 0.001}, # Higher LR for aberrations
-    #     {'params': list(zernike_coeffs.values()), 'lr': 0.001}
-    # ])
+    for param_dict in [tm_system.zoomfft_slm_params, tm_system.zoomfft_out_fwd_params,
+                       tm_system.zoomfft_out_inv_params]:
+        for param in param_dict.values():
+            param.requires_grad_(optimize_aberrations)
+    
+    # Polarization tilt parameters
+    tm_system.theta_before_slm.requires_grad_(optimize_aberrations)
+    tm_system.theta_after_slm.requires_grad_(optimize_aberrations)
+    
+    # --- 2. Setup Optimizer using module's parameters ---
+    optimizer = optim.Adam(tm_system.parameters(), lr=learning_rate)
     
     criterion = nn.L1Loss()
     planes_l = planes.lower()
@@ -659,37 +867,20 @@ def optimize_tm_slm(
 
     # --- 3. Training Loop ---
     for epoch in range(num_epochs):
-        # Zero gradients at the START of the epoch
-        optimizer.zero_grad()
-        
         total_epoch_loss = 0.0
-        
-        # Helper dicts (unwrapped)
-        z_slm = {k: v for k, v in zoomfft_slm.items()}
-        z_fwd = {k: v for k, v in zoomfft_out_fwd.items()}
-        z_inv = {k: v for k, v in zoomfft_out_inv.items()}
 
-        # Shuffle (less critical for full batch, but good practice if batch norms were involved)
+        # Shuffle data
         indices = torch.randperm(num_measurements)
 
-        # Loop over batches to ACCUMULATE gradients
+        # Loop over batches
         for i in range(num_batches):
             optimizer.zero_grad()
             start = i * batch_size
             end = min(start + batch_size, num_measurements)
             batch_idx = indices[start:end]
             
-            # Forward
-            pred_intensity = tm_system.forward_model_slm(
-                slm_patterns[batch_idx], optimized_tm,
-                zoomfft_params_slm=z_slm,
-                zoomfft_params_output_forward=z_fwd,
-                zoomfft_params_output_inverse=z_inv,
-                zernike_coeffs_before_ft=zernike_coeffs['before'],
-                zernike_coeffs_after_ft=zernike_coeffs['after'],
-                zernike_coeffs_image_plane=zernike_coeffs['image'],
-                zernike_coeffs_fourier_domain=zernike_coeffs['fourier']
-            )
+            # Forward pass using internal parameters (use_internal_params=True by default)
+            pred_intensity = tm_system.forward_model_slm(slm_patterns[batch_idx])
 
             # Select Planes
             if planes_l == 'image': 
@@ -707,25 +898,20 @@ def optimize_tm_slm(
             norm_factor = torch.mean(target_amp).detach()
             loss = criterion(pred_amp / norm_factor, target_amp / norm_factor)
             
-            # Scale loss by 1/num_batches so the gradients are averaged, not summed
-            # This mimics taking the mean gradient over the full dataset
-            loss_scaled = loss / num_batches
+            # Backward
+            loss.backward()
             
-            # Backward - Accumulates gradients into .grad buffers
-            loss_scaled.backward()
-            
-            # Track 'true' loss for reporting
-            total_epoch_loss += loss.item()
-
-        # Step Optimizer - ONCE per epoch
-        # (This uses the gradients accumulated over all batches)
+            # Step optimizer
             optimizer.step()
+            
+            # Track loss for reporting
+            total_epoch_loss += loss.item()
         
         # Logging
         avg_loss = total_epoch_loss / num_batches
         with torch.no_grad():
-            tm_error, _ = calculate_phase_aligned_frobenius_norm(tm_system.real_tm_tensor, optimized_tm)
-            tm_norm = torch.norm(optimized_tm).item()
+            tm_error, _ = calculate_phase_aligned_frobenius_norm(tm_system.real_tm_tensor, tm_system.optimized_tm)
+            tm_norm = torch.norm(tm_system.optimized_tm).item()
         
         history['epoch_losses'].append(avg_loss)
         history['tm_error'].append(tm_error)
@@ -734,8 +920,6 @@ def optimize_tm_slm(
         
         print(f"Epoch {epoch+1}/{num_epochs}: Loss={avg_loss:.6f}, TM Error={tm_error:.4f}, TM Norm={tm_norm:.6f}")
 
-    # Final Update
-    tm_system.optimized_tm_tensor = optimized_tm.detach()
     print("Optimization Completed.")
     return history
 
@@ -804,7 +988,8 @@ def main():
         mult_factor=mult_factor,
         zoomfft_params=zoomfft_params,
         zernike_n_modes=8,
-        dx=dx
+        dx=dx,
+        enforce_symmetric_tm=True
     )
     
     # ===== SLM Pattern Optimization =====

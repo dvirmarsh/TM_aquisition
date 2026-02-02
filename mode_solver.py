@@ -110,14 +110,14 @@ def find_guided_modes(a, n1, n0, wavelength, plot_dispersion=False):
                     mode_info = {'lp_m': m, 'lp_l': l, 'v': v_number, 'u': u, 'w': w, 'beta': beta}
                     
                     if m == 0:
-                        [guided_modes.append({**mode_info, 'mode_type': 'HE', 'n_order': 1, 'l_order': l, 'psi_idx': psi_idx}) for psi_idx in [0, 1]]
+                        [guided_modes.append({**mode_info, 'mode_type': 'HE', 'n_order': 1*sign_n, 'l_order': l}) for sign_n in [-1, 1]]
                     elif m == 1:
                         guided_modes.append({**mode_info, 'mode_type': 'TE', 'n_order': 0, 'l_order': l})
                         guided_modes.append({**mode_info, 'mode_type': 'TM', 'n_order': 0, 'l_order': l})
-                        [guided_modes.append({**mode_info, 'mode_type': 'HE', 'n_order': 2, 'l_order': l, 'psi_idx': psi_idx}) for psi_idx in [0, 1]]
+                        [guided_modes.append({**mode_info, 'mode_type': 'HE', 'n_order': 2*sign_n, 'l_order': l}) for sign_n in [-1, 1]]
                     else:
-                        [guided_modes.append({**mode_info, 'mode_type': 'EH', 'n_order': m - 1, 'l_order': l, 'psi_idx': psi_idx}) for psi_idx in [0, 1]]
-                        [guided_modes.append({**mode_info, 'mode_type': 'HE', 'n_order': m + 1, 'l_order': l, 'psi_idx': psi_idx}) for psi_idx in [0, 1]]
+                        [guided_modes.append({**mode_info, 'mode_type': 'EH', 'n_order': (m - 1)*sign_n, 'l_order': l}) for sign_n in [-1, 1]]
+                        [guided_modes.append({**mode_info, 'mode_type': 'HE', 'n_order': (m + 1)*sign_n, 'l_order': l}) for sign_n in [-1, 1]]
             except (ValueError, RuntimeError):
                 pass
         # Plot the dispersion relation for this m (only if requested)
@@ -153,7 +153,6 @@ def find_guided_modes(a, n1, n0, wavelength, plot_dispersion=False):
             plt.tight_layout()
             plt.show()
         m += 1
-        # if m > 20: break # Safety break
 
     return guided_modes
 
@@ -222,29 +221,32 @@ def calculate_wave_distribution(mode_params, fiber_params, X, Y):
         fields['H_theta'][clad_mask] = -1j * omega * epsilon0 * n0**2 * (a/w) * A * clad_norm * kn(1, w * r_clad / a)
 
     elif mp['mode_type'] in ['HE', 'EH']:
-        psi_idx = mp['psi_idx']
+        phase_core = np.exp(1j * n * theta_core)
+        phase_clad = np.exp(1j * n * theta_clad)
+        j_factor = -1j *np.sign(n)
+
         s = -1 if mp['mode_type'] == 'HE' else 1
-        clad_norm = jv(n, u) / kn(n, w)
+        clad_norm = jv(np.abs(n), u) / kn(np.abs(n), w)
         
         # Core fields (Eqs. 3.44)
-        term1_c = (1 - s) / 2 * jv(n - 1, u * r_core / a)
-        term2_c = (1 + s) / 2 * jv(n + 1, u * r_core / a)
-        fields['Er'][core_mask] = -1j*A*beta*(a/u) * (term1_c - term2_c) * np.cos(n*theta_core + psi_idx*np.pi/2)
-        fields['E_theta'][core_mask] = 1j*A*beta*(a/u) * (term1_c + term2_c) * np.sin(n*theta_core + psi_idx*np.pi/2)
-        fields['Ez'][core_mask] = A * jv(n, u * r_core / a) * np.cos(n*theta_core + psi_idx*np.pi/2)
-        fields['Hr'][core_mask] = -1j*A*omega*epsilon0*n1**2*(a/u) * (term1_c + term2_c) * np.sin(n*theta_core + psi_idx*np.pi/2)
-        fields['H_theta'][core_mask] = -1j*A*omega*epsilon0*n1**2*(a/u) * (term1_c - term2_c) * np.cos(n*theta_core + psi_idx*np.pi/2)
-        fields['Hz'][core_mask] = -A * (beta/(omega*mu0)) * s * jv(n, u * r_core / a) * np.sin(n*theta_core + psi_idx*np.pi/2)
+        term1_c = (1 - s) / 2 * jv(np.abs(n) - 1, u * r_core / a)
+        term2_c = (1 + s) / 2 * jv(np.abs(n) + 1, u * r_core / a)
+        fields['Er'][core_mask] = -1j*A*beta*(a/u) * (term1_c - term2_c) * phase_core
+        fields['E_theta'][core_mask] = 1j*A*beta*(a/u) * (term1_c + term2_c) * j_factor * phase_core
+        fields['Ez'][core_mask] = A * jv(np.abs(n), u * r_core / a) * phase_core
+        fields['Hr'][core_mask] = -1j*A*omega*epsilon0*n1**2*(a/u) * (term1_c + term2_c) * j_factor * phase_core
+        fields['H_theta'][core_mask] = -1j*A*omega*epsilon0*n1**2*(a/u) * (term1_c - term2_c) * phase_core
+        fields['Hz'][core_mask] = -A * (beta/(omega*mu0)) * s * jv(np.abs(n), u * r_core / a) * j_factor * phase_core
         
         # Cladding fields (Eqs. 3.45) - using weak guidance s1=s0=s
-        term1_cl = (1 - s) / 2 * kn(n - 1, w * r_clad / a)
-        term2_cl = (1 + s) / 2 * kn(n + 1, w * r_clad / a)
-        fields['Er'][clad_mask] = -1j*A*beta*(a/w)*clad_norm * (term1_cl + term2_cl) * np.cos(n*theta_clad + psi_idx*np.pi/2)
-        fields['E_theta'][clad_mask] = 1j*A*beta*(a/w)*clad_norm * (-term1_cl + term2_cl) * np.sin(n*theta_clad + psi_idx*np.pi/2)
-        fields['Ez'][clad_mask] = A * clad_norm * kn(n, w * r_clad / a) * np.cos(n*theta_clad + psi_idx*np.pi/2)
-        fields['Hr'][clad_mask] = -1j*A*omega*epsilon0*n0**2*(a/w)*clad_norm * (-term1_cl + term2_cl) * np.sin(n*theta_clad + psi_idx*np.pi/2)
-        fields['H_theta'][clad_mask] = -1j*A*omega*epsilon0*n0**2*(a/w)*clad_norm * (term1_cl + term2_cl) * np.cos(n*theta_clad + psi_idx*np.pi/2)
-        fields['Hz'][clad_mask] = -A * (beta/(omega*mu0)) * s * clad_norm * kn(n, w * r_clad / a) * np.sin(n*theta_clad + psi_idx*np.pi/2)
+        term1_cl = (1 - s) / 2 * kn(np.abs(n) - 1, w * r_clad / a)
+        term2_cl = (1 + s) / 2 * kn(np.abs(n) + 1, w * r_clad / a)
+        fields['Er'][clad_mask] = -1j*A*beta*(a/w)*clad_norm * (term1_cl + term2_cl) * phase_clad
+        fields['E_theta'][clad_mask] = 1j*A*beta*(a/w)*clad_norm * (term1_cl - term2_cl) * j_factor * phase_clad
+        fields['Ez'][clad_mask] = A * clad_norm * kn(np.abs(n), w * r_clad / a) * phase_clad
+        fields['Hr'][clad_mask] = -1j*A*omega*epsilon0*n0**2*(a/w)*clad_norm * (term1_cl - term2_cl) * j_factor *phase_clad
+        fields['H_theta'][clad_mask] = -1j*A*omega*epsilon0*n0**2*(a/w)*clad_norm * (term1_cl + term2_cl) * phase_clad
+        fields['Hz'][clad_mask] = -A * (beta/(omega*mu0)) * s * clad_norm * kn(np.abs(n), w * r_clad / a) * j_factor * phase_clad
 
     return fields
 
@@ -253,11 +255,11 @@ def calculate_wave_distribution(mode_params, fiber_params, X, Y):
 # ==============================================================================
 if __name__ == '__main__':
     # --- Fiber Parameters ---
-    fiber_core_radius = 25e-6
+    fiber_core_radius = 25.0e-6
     fiber_n_core = 1.457
-    fiber_n_cladding = 1.44
+    fiber_n_cladding = np.sqrt(fiber_n_core**2 - 0.22**2)
     # Use a shorter wavelength to make the fiber multi-mode for demonstration
-    operating_wavelength = 0.633e-6
+    operating_wavelength = 0.6328e-6
     
     # --- Find Modes ---
     print("="*50 + "\n1. Finding Guided Modes\n" + "="*50)
@@ -290,10 +292,12 @@ if __name__ == '__main__':
                 max_u = mode['u']
                 chosen_mode = mode
                 mode_to_plot_index = i
+        mode_to_plot_index = 100
+        chosen_mode = all_modes[mode_to_plot_index]
         print(f"Mode to plot index: {mode_to_plot_index}")
         print(f"Plotting Mode: LP_{chosen_mode['lp_m']}{chosen_mode['lp_l']} -> {chosen_mode['mode_type']}_{chosen_mode['n_order']}{chosen_mode['l_order']}")
 
-        grid_size, plot_range = 200, fiber_core_radius * 3
+        grid_size, plot_range = 300, fiber_core_radius * 1.05
         x = np.linspace(-plot_range, plot_range, grid_size)
         y = np.linspace(-plot_range, plot_range, grid_size)
         X, Y = np.meshgrid(x, y)
@@ -304,12 +308,11 @@ if __name__ == '__main__':
 
         # Calculate Poynting Vector z-component: Sz = 1/2 Re(Er H_theta* - E_theta Hr*)
         Sz = 0.5 * np.real(cyl_fields['Er'] * np.conj(cyl_fields['H_theta']) - cyl_fields['E_theta'] * np.conj(cyl_fields['Hr']))
-        # Sz = np.abs(cyl_fields['Er'])**2
         # Convert E-fields to Cartesian for vector plot
         theta = np.arctan2(Y, X)
         Ex = cyl_fields['Er'] * np.cos(theta) - cyl_fields['E_theta'] * np.sin(theta)
         Ey = cyl_fields['Er'] * np.sin(theta) + cyl_fields['E_theta'] * np.cos(theta)
-
+        # Sz = np.abs(Ex)**2
         fig, axes = plt.subplots(1, 2, figsize=(14, 6))
         fig.suptitle(f"Mode: {chosen_mode['mode_type']}_{chosen_mode['n_order']}{chosen_mode['l_order']} (LP_{chosen_mode['lp_m']}{chosen_mode['lp_l']})", fontsize=16)
 

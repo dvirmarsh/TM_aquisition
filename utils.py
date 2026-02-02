@@ -138,7 +138,7 @@ class ZoomFFT2D_Optimizable(nn.Module):
 # --- 2. Define the abberation model ---
 
 class ZernikeAberrationLayer(nn.Module):
-    def __init__(self, N, M, n_modes=12, grid_radius=1.0):
+    def __init__(self, N, M, n_modes=12, grid_radius=1.0, start_noll=4):
         """
         Args:
             N, M: Grid dimensions.
@@ -156,7 +156,7 @@ class ZernikeAberrationLayer(nn.Module):
         Y, X = torch.meshgrid(y, x, indexing='ij')
         rho = torch.sqrt(X**2 + Y**2) / grid_radius
         phi = torch.atan2(Y, X)
-        
+        mask = (rho <= 1.0)
         # 2. Generate Zernike Bases
         if n_modes == 0:
             # Handle case when no modes are requested
@@ -165,10 +165,16 @@ class ZernikeAberrationLayer(nn.Module):
         else:
             zernike_list = []
 
-            current_noll = 4
+            current_noll = start_noll
             for i in range(n_modes):
                 n, m = self._noll_to_nm(current_noll)
                 z_map = self._zernike_polar(n, m, rho, phi)
+                z_map = z_map*mask.float()
+                if m == 0:
+                    norm = math.sqrt(n + 1)
+                else:
+                    norm = math.sqrt(2 * (n + 1))
+                z_map = z_map * norm
                 zernike_list.append(z_map)
                 
                 current_noll += 1
@@ -497,7 +503,7 @@ def plot_results(
     axes[1, 0].set_title('Real Intensity (Image Plane)')
     plt.colorbar(im1, ax=axes[1, 0])
     
-    im2 = axes[1, 1].imshow(predicted_intensity[0, 0].cpu().numpy(), cmap='viridis')
+    im2 = axes[1, 1].imshow(predicted_intensity[0, 0].detach().cpu().numpy(), cmap='viridis')
     axes[1, 1].set_title('Predicted Intensity (Image Plane)')
     plt.colorbar(im2, ax=axes[1, 1])
     

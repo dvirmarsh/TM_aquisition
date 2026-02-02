@@ -67,7 +67,7 @@ class PearsonCorrelationLoss(nn.Module):
     - Perfect negative correlation (r=-1) gives loss = 2
     """
     
-    def __init__(self, dim: Optional[int] = None, eps: float = 1e-8):
+    def __init__(self, dim: Optional[int] = None, eps: float = 1e-8, center: bool = True):
         """
         Initialize Pearson correlation loss module.
         
@@ -78,6 +78,7 @@ class PearsonCorrelationLoss(nn.Module):
         super(PearsonCorrelationLoss, self).__init__()
         self.dim = dim
         self.eps = eps
+        self.center = center
     
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
@@ -96,8 +97,12 @@ class PearsonCorrelationLoss(nn.Module):
             y = y.flatten()
         
         # Center the variables
-        x_centered = x - torch.mean(x, dim=self.dim, keepdim=True) if self.dim is not None else x - torch.mean(x)
-        y_centered = y - torch.mean(y, dim=self.dim, keepdim=True) if self.dim is not None else y - torch.mean(y)
+        if self.center:
+            x_centered = x - torch.mean(x, dim=self.dim, keepdim=True) if self.dim is not None else x - torch.mean(x)
+            y_centered = y - torch.mean(y, dim=self.dim, keepdim=True) if self.dim is not None else y - torch.mean(y)
+        else:
+            x_centered = x
+            y_centered = y
         
         # Calculate covariance
         if self.dim is None:
@@ -167,6 +172,6 @@ def evaluate_reconstruction(
         'intensity_mean_error': intensity_error.item(),
         'intensity_mean_error_normalized': intensity_error_normalized.item(),
         'real_singular_values': real_sv.cpu().numpy(),
-        'optimized_singular_values': optimized_sv.cpu().numpy()
+        'optimized_singular_values': optimized_sv.detach().cpu().numpy()
     }
 
