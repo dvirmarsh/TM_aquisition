@@ -124,6 +124,49 @@ class PearsonCorrelationLoss(nn.Module):
         return loss.mean()
 
 
+class ComplexCosineLoss(nn.Module):
+    """
+    Complex cosine similarity loss for complex-valued tensors.
+    
+    Computes 1 - |CosineSimilarity| which is invariant to global phase shift and scaling.
+    Useful for comparing complex mode distributions in TM retrieval.
+    """
+    
+    def __init__(self, eps: float = 1e-8):
+        """
+        Initialize complex cosine loss module.
+        
+        Args:
+            eps: Small value to avoid division by zero
+        """
+        super(ComplexCosineLoss, self).__init__()
+        self.eps = eps
+        
+    def forward(self, y_pred: torch.Tensor, y_target: torch.Tensor) -> torch.Tensor:
+        """
+        Compute complex cosine similarity loss.
+        
+        Args:
+            y_pred: Predicted complex tensor, shape (Batch, Modes) or (Batch, ...)
+            y_target: Target complex tensor, same shape as y_pred
+        
+        Returns:
+            Loss as 1 - |cosine similarity| (scalar tensor)
+        """
+        # Compute Hermitian inner product: sum(y_pred * conj(y_target))
+        dot_prod = torch.sum(y_pred * y_target.conj(), dim=1)
+        
+        # Compute magnitudes
+        norm_pred = torch.norm(y_pred, dim=1)
+        norm_target = torch.norm(y_target, dim=1)
+        
+        # Compute cosine similarity (take absolute value to ignore global phase)
+        cosine_sim = torch.abs(dot_prod) / (norm_pred * norm_target + self.eps)
+        
+        # Return loss as 1 - mean(cosine similarity)
+        return 1.0 - torch.mean(cosine_sim)
+
+
 def evaluate_reconstruction(
     real_tm_tensor: torch.Tensor,
     optimized_tm_tensor: torch.Tensor,
