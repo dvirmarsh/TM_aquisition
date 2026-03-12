@@ -1328,6 +1328,7 @@ def optimize_tm_internal_reference_4step(
         param_groups[0]['params'].extend([tm_system.diag_in, tm_system.diag_out])
 
     optimizer = optim.Adam(param_groups)
+    criterion_cosine = ComplexCosineLoss()
 
     num_measurements = base_slm_patterns.shape[0]
     num_batches = (num_measurements + batch_size - 1) // batch_size
@@ -1380,8 +1381,10 @@ def optimize_tm_internal_reference_4step(
 
             Y_pred_aligned = Y_pred_norm * phase_shift
 
-            # Loss is strictly bounded between 0.0 and 4.0
-            loss = torch.mean(torch.abs(Y_pred_aligned - target_norm) ** 2)*1e3
+            # Cosine similarity loss (1 - |cosine_sim|), scale/phase invariant
+            Y_pred_flat = Y_pred_aligned.reshape(Y_pred_aligned.shape[0], -1)
+            target_flat = target_norm.reshape(target_norm.shape[0], -1)
+            loss = criterion_cosine(Y_pred_flat, target_flat)
 
             loss.backward()
             optimizer.step()
@@ -1420,7 +1423,9 @@ def optimize_tm_internal_reference_4step(
                 phase_shift_t = inner_t / (torch.abs(inner_t) + 1e-12)
 
                 Y_pred_aligned_t = Y_pred_norm_t * phase_shift_t
-                test_loss = torch.mean(torch.abs(Y_pred_aligned_t - target_norm_t) ** 2).item()
+                Y_pred_flat_t = Y_pred_aligned_t.reshape(Y_pred_aligned_t.shape[0], -1)
+                target_flat_t = target_norm_t.reshape(target_norm_t.shape[0], -1)
+                test_loss = criterion_cosine(Y_pred_flat_t, target_flat_t).item()
 
             history['test_losses'].append(test_loss)
             test_loss_str = f", Test Loss={test_loss:.6f}"
