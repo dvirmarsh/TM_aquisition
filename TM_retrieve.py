@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from typing import Dict, List, Tuple, Optional
+import matplotlib.pyplot as plt
 from mode_solver import find_guided_modes
 from tm_sampler import sample_tm_perturbed_mmf
 from utils import (
@@ -174,7 +175,9 @@ class TMMeasurementSystem(nn.Module):
         
         # Initialization TM (starting point for optimization): diag(exp(1j*beta_mode))
         beta_modes = np.array([m['beta'] for m in self.guided_modes], dtype=np.float64)
-        optimized_tm_init = np.diag(np.exp(1j * beta_modes)).astype(np.complex64)
+        # Add random noise with std 0.01 to the diagonal initialization
+        noise = 0.01 * (np.random.randn(len(beta_modes), len(beta_modes)) + 1j * np.random.randn(len(beta_modes), len(beta_modes))).astype(np.complex64)
+        optimized_tm_init = np.diag(np.exp(1j * beta_modes)).astype(np.complex64) + noise
         
         # Convert to torch tensors
         # real_tm_tensor is registered as a buffer (not learnable, but moves with module)
@@ -824,7 +827,7 @@ class TMMeasurementSystem(nn.Module):
     
     def sample_unknown_aberrations(
         self,
-        zernike_std: float = 0.1,
+        zernike_std: float = 0.01,
         zoomfft_std: float = 0.01
     ) -> Dict:
         """
@@ -1257,7 +1260,7 @@ def extract_complex_interference_4step(intensities_4step: torch.Tensor) -> torch
 
     Expects intensities from simulate_phase_stepped_measurements with shape (N, 4, ...).
     Uses the standard 4-step formula:
-      Y = ((I_0 - I_π) / 4) + 1j * ((I_π/2 - I_3π/2) / 4).
+      Y = ((I_0 - I_π) / 2) + 1j * ((I_3π/2 - I_π/2) / 2).
 
     Args:
         intensities_4step: Intensities tensor, shape (N, 4, num_planes, H, W) or (N, 4, H, W).
@@ -1269,7 +1272,7 @@ def extract_complex_interference_4step(intensities_4step: torch.Tensor) -> torch
     I_pi_2 = intensities_4step[:, 1]
     I_pi = intensities_4step[:, 2]
     I_3pi_2 = intensities_4step[:, 3]
-    Y_target = ((I_0 - I_pi) / 4.0) + 1j * ((I_pi_2 - I_3pi_2) / 4.0)
+    Y_target = ((I_0 - I_pi) / 2.0) + 1j * ((I_3pi_2 - I_pi_2) / 2.0)
     return Y_target
 
 
@@ -1280,100 +1283,149 @@ def optimize_tm_internal_reference_4step(
     num_epochs: int = 100,
     learning_rate: float = 0.01,
     learning_rate_phys: float = 0.005,
-    batch_size: int = 32,
+    learning_rate_aberrations: float = 0.005,
+    batch_size: int = 64,
     image_plane_index: int = 0,
+    optimize_aberrations: bool = True,
+    real_tm: Optional[torch.Tensor] = None,
+    test_slm_patterns: Optional[torch.Tensor] = None,
+    test_complex_targets: Optional[torch.Tensor] = None,
     **forward_kwargs
 ) -> Dict:
-    """
-    Optimize TM using internal y-polarized reference and 4-step phase-stepping interference targets.
 
-    The loss is 1 minus cosine similarity (real part of normalized complex inner product)
-    between predicted and target complex interference Y at the chosen image plane.
-    E_ref is computed once per batch (single dummy pattern) since the y-only path is not SLM-modulated.
-
-    Args:
-        tm_system: TMMeasurementSystem with learnable parameters.
-        base_slm_patterns: SLM phase patterns, shape (N, H, W).
-        complex_interference_targets: Target complex interference from extract_complex_interference_4step,
-            shape (N, H, W) for image plane only, or (N, num_planes, H, W) with image_plane_index selecting plane.
-        num_epochs: Number of optimization epochs.
-        learning_rate: Learning rate for TM parameters.
-        learning_rate_phys: Learning rate for physical parameters (e.g. polarization, SLM amplitude).
-        batch_size: Mini-batch size.
-        image_plane_index: Plane index for loss (0 = image plane, 1 = Fourier).
-        **forward_kwargs: Optional kwargs for forward_model_slm.
-
-    Returns:
-        Dict with training history (epoch_losses, etc.).
-    """
+    # 1. Enable Gradients
     tm_system._optimized_tm_param.requires_grad_(True)
     tm_system.slm_complex_amplitude.requires_grad_(True)
-    tm_system.theta_before_slm.requires_grad_(True)
-    tm_system.theta_after_slm.requires_grad_(True)
-    optimizer = optim.Adam([
+    tm_system.theta_before_slm.requires_grad_(optimize_aberrations)
+    tm_system.theta_after_slm.requires_grad_(optimize_aberrations)
+
+    zernike_params = [tm_system.zernike_before_ft, tm_system.zernike_after_ft,
+                      tm_system.zernike_image_plane, tm_system.zernike_fourier_domain]
+    for param in zernike_params:
+        param.requires_grad_(optimize_aberrations)
+
+    zoomfft_params_list = []
+    for param_dict in [tm_system.zoomfft_slm_params, tm_system.zoomfft_out_fwd_params, tm_system.zoomfft_out_inv_params]:
+        for param in param_dict.values():
+            param.requires_grad_(optimize_aberrations)
+            if optimize_aberrations:
+                zoomfft_params_list.append(param)
+
+    # 2. Setup Adam Optimizer (E_ref_opt is removed, optimizing TM directly)
+    param_groups = [
         {'params': [tm_system._optimized_tm_param], 'lr': learning_rate},
-        {'params': [tm_system.slm_complex_amplitude, tm_system.theta_before_slm, tm_system.theta_after_slm], 'lr': learning_rate_phys}
-    ])
+        {'params': [tm_system.slm_complex_amplitude], 'lr': learning_rate_phys}
+    ]
+    if optimize_aberrations:
+        param_groups[1]['params'].extend([tm_system.theta_before_slm, tm_system.theta_after_slm])
+        aberration_params = [p for p in zernike_params if p.requires_grad] + zoomfft_params_list
+        if aberration_params:
+            param_groups.append({'params': aberration_params, 'lr': learning_rate_aberrations})
+
     if getattr(tm_system, 'enforce_symmetric_tm', False):
         tm_system.diag_in.requires_grad_(True)
         tm_system.diag_out.requires_grad_(True)
-        optimizer.add_param_group({'params': [tm_system.diag_in, tm_system.diag_out], 'lr': learning_rate})
+        param_groups[0]['params'].extend([tm_system.diag_in, tm_system.diag_out])
+
+    optimizer = optim.Adam(param_groups)
 
     num_measurements = base_slm_patterns.shape[0]
     num_batches = (num_measurements + batch_size - 1) // batch_size
-    history = {'epoch_losses': []}
+    history = {'epoch_losses': [], 'tm_frobenius_error_aligned': [], 'test_losses': []}
+    true_tm = real_tm if real_tm is not None else getattr(tm_system, 'real_tm_tensor', None)
 
+    # Dummy pattern used to generate the reference field
+    dummy_pattern = torch.zeros(1, *base_slm_patterns.shape[1:], device=base_slm_patterns.device, dtype=base_slm_patterns.dtype)
+
+    print(f"Starting Adam Optimization. Batches/Epoch: {num_batches}")
+
+    # 3. Standard Training Loop
     for epoch in range(num_epochs):
-        total_loss = 0.0
         indices = torch.randperm(num_measurements, device=base_slm_patterns.device)
+        total_loss_val = 0.0
+
         for i in range(num_batches):
             optimizer.zero_grad()
+
             start = i * batch_size
             end = min(start + batch_size, num_measurements)
             batch_idx = indices[start:end]
-            batch_slm = base_slm_patterns[batch_idx].detach().contiguous()
-            batch_target = complex_interference_targets[batch_idx].detach().contiguous()
 
-            E_mod = tm_system.forward_model_slm(
-                batch_slm,
-                active_polarization='x_only',
-                return_complex_field=True,
-                **forward_kwargs
-            )
-            # E_ref is identical for all patterns (y_only path not modulated by SLM); compute once with dummy pattern
-            dummy_pattern = torch.zeros(1, *batch_slm.shape[1:], device=batch_slm.device, dtype=batch_slm.dtype)
-            E_ref_single = tm_system.forward_model_slm(
-                dummy_pattern,
-                active_polarization='y_only',
-                return_complex_field=True,
-                **forward_kwargs
-            )
-            E_ref_x = E_ref_single[:, image_plane_index, 0]   # (1, H, W)
-            E_ref_y = E_ref_single[:, image_plane_index, 1]   # (1, H, W)
+            batch_slm = base_slm_patterns[batch_idx].detach()
+            batch_target = complex_interference_targets[batch_idx].detach()
 
-            E_mod_x = E_mod[:, image_plane_index, 0]
-            E_mod_y = E_mod[:, image_plane_index, 1]
+            # Forward passes (Calculated directly from the active TM)
+            E_mod = tm_system.forward_model_slm(batch_slm, active_polarization='x_only', return_complex_field=True, **forward_kwargs)
+            E_ref = tm_system.forward_model_slm(dummy_pattern, active_polarization='y_only', return_complex_field=True, **forward_kwargs)
 
+            E_mod_x, E_mod_y = E_mod[:, image_plane_index, 0], E_mod[:, image_plane_index, 1]
+            E_ref_x, E_ref_y = E_ref[:, image_plane_index, 0], E_ref[:, image_plane_index, 1]
+
+            # Construct interference prediction
             Y_pred = (E_mod_x * torch.conj(E_ref_x)) + (E_mod_y * torch.conj(E_ref_y))
+            target_slice = batch_target[:, image_plane_index] if batch_target.dim() == 4 else batch_target
 
-            if batch_target.dim() == 4:
-                target_slice = batch_target[:, image_plane_index]
-            else:
-                target_slice = batch_target
+            # --- Scale-Invariant Normalized Complex MSE ---
+            # Normalizing fields to unit norm ensures massive, healthy gradients even when initialization is random.
+            norm_Y = torch.norm(Y_pred, dim=(1, 2), keepdim=True) + 1e-12
+            norm_T = torch.norm(target_slice, dim=(1, 2), keepdim=True) + 1e-12
 
-            # Cosine similarity loss: 1 - Re(<Y_pred, Y_target>) / (||Y_pred|| ||Y_target||)
-            inner = torch.sum(Y_pred * torch.conj(target_slice), dim=(1,2), keepdim=True)
-            norm_pred = torch.sqrt(torch.sum(torch.abs(Y_pred) ** 2, dim=(1,2), keepdim=True) + 1e-12)
-            norm_target = torch.sqrt(torch.sum(torch.abs(target_slice) ** 2, dim=(1,2), keepdim=True) + 1e-12)
-            cos_sim = (inner.abs()) / (norm_pred * norm_target)
-            loss = 1.0 - torch.mean(cos_sim)
+            Y_pred_norm = Y_pred / norm_Y
+            target_norm = target_slice / norm_T
+
+            # Align global phase without collapsing magnitude
+            with torch.no_grad():
+                inner = torch.sum(Y_pred_norm * torch.conj(target_norm), dim=(1, 2), keepdim=True)
+                phase_shift = inner / (torch.abs(inner) + 1e-12)
+
+            Y_pred_aligned = Y_pred_norm * phase_shift
+
+            # Loss is strictly bounded between 0.0 and 4.0
+            loss = torch.mean(torch.abs(Y_pred_aligned - target_norm) ** 2)*1e3
+
             loss.backward()
             optimizer.step()
-            total_loss += loss.item()
 
-        avg_loss = total_loss / num_batches
+            total_loss_val += loss.item()
+
+        avg_loss = total_loss_val / num_batches
         history['epoch_losses'].append(avg_loss)
-        print(f"Epoch {epoch+1}/{num_epochs}: Loss={avg_loss:.6f}")
+
+        # Metrics
+        frob_norm_str, test_loss_str = "", ""
+        if true_tm is not None:
+            with torch.no_grad():
+                frob_norm, phi_opt = calculate_phase_aligned_frobenius_norm(true_tm, tm_system.optimized_tm)
+            history['tm_frobenius_error_aligned'].append(frob_norm)
+            frob_norm_str = f", TM Error={frob_norm:.6f}"
+
+        if test_slm_patterns is not None and test_complex_targets is not None:
+            with torch.no_grad():
+                E_mod_test = tm_system.forward_model_slm(test_slm_patterns, active_polarization='x_only', return_complex_field=True, **forward_kwargs)
+                E_ref_test = tm_system.forward_model_slm(dummy_pattern, active_polarization='y_only', return_complex_field=True, **forward_kwargs)
+
+                E_mod_x_t, E_mod_y_t = E_mod_test[:, image_plane_index, 0], E_mod_test[:, image_plane_index, 1]
+                E_ref_x_t, E_ref_y_t = E_ref_test[:, image_plane_index, 0], E_ref_test[:, image_plane_index, 1]
+
+                Y_pred_test = (E_mod_x_t * torch.conj(E_ref_x_t)) + (E_mod_y_t * torch.conj(E_ref_y_t))
+                target_test = test_complex_targets[:, image_plane_index] if test_complex_targets.dim() == 4 else test_complex_targets
+
+                norm_Y_t = torch.norm(Y_pred_test, dim=(1, 2), keepdim=True) + 1e-12
+                norm_T_t = torch.norm(target_test, dim=(1, 2), keepdim=True) + 1e-12
+
+                Y_pred_norm_t = Y_pred_test / norm_Y_t
+                target_norm_t = target_test / norm_T_t
+
+                inner_t = torch.sum(Y_pred_norm_t * torch.conj(target_norm_t), dim=(1, 2), keepdim=True)
+                phase_shift_t = inner_t / (torch.abs(inner_t) + 1e-12)
+
+                Y_pred_aligned_t = Y_pred_norm_t * phase_shift_t
+                test_loss = torch.mean(torch.abs(Y_pred_aligned_t - target_norm_t) ** 2).item()
+
+            history['test_losses'].append(test_loss)
+            test_loss_str = f", Test Loss={test_loss:.6f}"
+
+        print(f"Epoch {epoch+1}/{num_epochs}: Loss={avg_loss:.6f}{frob_norm_str}{test_loss_str}")
 
     return history
 
@@ -1704,41 +1756,92 @@ def main():
         zoomfft_params=zoomfft_params,
         zernike_n_modes=8,
         dx=dx,
-        enforce_symmetric_tm=False
+        enforce_symmetric_tm=False,
+        theta_before_slm_init=np.pi/8
     )
-    
+
+    # ===== 4-step internal reference TM retrieval simulation =====
+    run_4step_simulation = True
+    if run_4step_simulation:
+        print("\n" + "="*60)
+        print("4-step internal reference TM retrieval simulation")
+        print("="*60)
+        num_4step_train = 4000
+        num_4step_test = 200
+        base_slm_patterns_4step = torch.rand(
+            num_4step_train + num_4step_test,
+            grid_params['ny'], grid_params['nx'],
+            device=tm_system.device
+        ) * 2 * np.pi
+        # Simulate 4-step measurements using the real TM with same aberrations/amplitude as optimizer.
+        # no_grad: we only need target values, not a computation graph (saves large GPU memory).
+        with torch.no_grad():
+            intensities_4step = simulate_phase_stepped_measurements(
+                tm_system,
+                base_slm_patterns_4step,
+                tm=tm_system.real_tm_tensor,
+                use_internal_params=True,
+                apply_slm_amplitude=True
+            )
+            complex_targets_4step = extract_complex_interference_4step(intensities_4step)
+        train_slm_4step = base_slm_patterns_4step[:num_4step_train]
+        train_targets_4step = complex_targets_4step[:num_4step_train]
+        test_slm_4step = base_slm_patterns_4step[num_4step_train:num_4step_train + num_4step_test]
+        test_targets_4step = complex_targets_4step[num_4step_train:num_4step_train + num_4step_test]
+        print(f"Train patterns: {train_slm_4step.shape[0]}, test patterns: {test_slm_4step.shape[0]}")
+        history_4step = optimize_tm_internal_reference_4step(
+            tm_system=tm_system,
+            base_slm_patterns=train_slm_4step,
+            complex_interference_targets=train_targets_4step,
+            num_epochs=50,
+            learning_rate=1e-2,
+            learning_rate_phys=1e-2,
+            learning_rate_aberrations=1e-2,
+            batch_size=128,
+            image_plane_index=0,
+            optimize_aberrations=True,
+            real_tm=tm_system.real_tm_tensor,
+            test_slm_patterns=test_slm_4step,
+            test_complex_targets=test_targets_4step,
+            use_internal_params=True,
+            apply_slm_amplitude=True
+        )
+        print("4-step simulation done.")
+        print("="*60 + "\n")
+
     # ===== SLM Pattern Optimization =====
-    # Set these flags to test different configurations:
-    use_aberrations_in_target = True  # If True, targets have aberrations; if False, no aberrations
-    optimize_aberrations = True       # If True, optimize TM+aberrations; if False, optimize TM only
-    
-    print("\n" + "="*60)
-    print(f"SLM Pattern Optimization Mode")
-    print(f"  Target aberrations: {use_aberrations_in_target}")
-    print(f"  Optimize aberrations: {optimize_aberrations}")
-    print("="*60)
-    
-    # Sample SLM measurements
-    print("\nSampling SLM measurements...")
-    slm_patterns, intensity_measurements = tm_system.sample_measurements_slm(
-        num_measurements=4000, use_aberrations=use_aberrations_in_target)
-    
-    # Optimize TM (and optionally aberrations)
-    print("\nOptimizing transmission matrix...")
-    import time
-    start_time = time.time()
-    history = optimize_tm_slm(
-        tm_system=tm_system,
-        slm_patterns=slm_patterns,
-        intensity_targets=intensity_measurements,
-        num_epochs=100,
-        learning_rate=0.001,
-        batch_size=512,
-        planes='both',
-        optimize_aberrations=optimize_aberrations
-    )
-    end_time = time.time()
-    print(f"Optimization time: {end_time - start_time:.2f} seconds")
+    else:
+        # Set these flags to test different configurations:
+        use_aberrations_in_target = True  # If True, targets have aberrations; if False, no aberrations
+        optimize_aberrations = True       # If True, optimize TM+aberrations; if False, optimize TM only
+        
+        print("\n" + "="*60)
+        print(f"SLM Pattern Optimization Mode")
+        print(f"  Target aberrations: {use_aberrations_in_target}")
+        print(f"  Optimize aberrations: {optimize_aberrations}")
+        print("="*60)
+        
+        # Sample SLM measurements
+        print("\nSampling SLM measurements...")
+        slm_patterns, intensity_measurements = tm_system.sample_measurements_slm(
+            num_measurements=4000, use_aberrations=use_aberrations_in_target)
+        
+        # Optimize TM (and optionally aberrations)
+        print("\nOptimizing transmission matrix...")
+        import time
+        start_time = time.time()
+        history = optimize_tm_slm(
+            tm_system=tm_system,
+            slm_patterns=slm_patterns,
+            intensity_targets=intensity_measurements,
+            num_epochs=100,
+            learning_rate=0.001,
+            batch_size=512,
+            planes='both',
+            optimize_aberrations=optimize_aberrations
+        )
+        end_time = time.time()
+        print(f"Optimization time: {end_time - start_time:.2f} seconds")
     
     
     # Evaluate results
