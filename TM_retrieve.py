@@ -9,6 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import torch.utils.checkpoint as cp
 from typing import Dict, List, Tuple, Optional
 import matplotlib.pyplot as plt
 from mode_solver import find_guided_modes
@@ -555,11 +556,11 @@ class TMMeasurementSystem(nn.Module):
         cos_theta_before = torch.cos(self.theta_before_slm)
         sin_theta_before = torch.sin(self.theta_before_slm)
         E_field_slm = torch.zeros(batch_size, 2, H, W, dtype=torch.complex64, device=self.device)
-        E_field_slm[:, 0, :, :] = cos_theta_before
+        # E_field_slm[:, 0, :, :] = cos_theta_before
         E_field_slm[:, 1, :, :] = sin_theta_before
 
         # Only x-polarization is modulated by SLM pattern
-        E_field_slm[:, 0, :, :] = E_field_slm[:, 0, :, :] * torch.exp(1j * slm_pattern)
+        E_field_slm[:, 0, :, :] = cos_theta_before * torch.exp(1j * slm_pattern)
 
         # Isolate polarizations when requested (e.g. for 4-step internal reference)
         if active_polarization == 'x_only':
@@ -827,8 +828,8 @@ class TMMeasurementSystem(nn.Module):
     
     def sample_unknown_aberrations(
         self,
-        zernike_std: float = 0.01,
-        zoomfft_std: float = 0.01
+        zernike_std: float = 0.0,
+        zoomfft_std: float = 0.0
     ) -> Dict:
         """
         Sample small unknown aberrations for the real system.
@@ -1226,6 +1227,7 @@ def optimize_tm_slm(
 def simulate_phase_stepped_measurements(
     tm_system: TMMeasurementSystem,
     base_slm_patterns: torch.Tensor,
+    max_batch_size: Optional[int] = None,
     **forward_kwargs
 ) -> torch.Tensor:
     """
@@ -1235,23 +1237,41 @@ def simulate_phase_stepped_measurements(
     Args:
         tm_system: TMMeasurementSystem instance.
         base_slm_patterns: Base SLM phase patterns, shape (N, H, W).
+        max_batch_size: If set, process patterns in chunks of this size to reduce memory (e.g. for enforce_symmetric_tm).
         **forward_kwargs: Optional kwargs passed to forward_model_slm (e.g. tm=, use_internal_params=).
 
     Returns:
         Intensities stacked over phase steps, shape (N, 4, num_planes, H, W) where index 1 is the 4 phase steps.
     """
-    device = base_slm_patterns.device
-    phases = [0.0, torch.pi / 2, torch.pi, 3 * torch.pi / 2]
-    step_intensities = []
-    for phase in phases:
-        shifted_patterns = base_slm_patterns + phase
-        intensities = tm_system.forward_model_slm(
-            shifted_patterns,
-            active_polarization='both',
-            **forward_kwargs
-        )
-        step_intensities.append(intensities)
-    return torch.stack(step_intensities, dim=1)
+    N = base_slm_patterns.shape[0]
+    if max_batch_size is None or N <= max_batch_size:
+        # Single pass
+        phases = [0.0, torch.pi / 2, torch.pi, 3 * torch.pi / 2]
+        step_intensities = []
+        for phase in phases:
+            shifted_patterns = base_slm_patterns + phase
+            intensities = tm_system.forward_model_slm(
+                shifted_patterns,
+                active_polarization='both',
+                **forward_kwargs
+            )
+            step_intensities.append(intensities)
+        return torch.stack(step_intensities, dim=1)
+    # Chunked pass to avoid OOM (e.g. when enforce_symmetric_tm=True uses 2x field tensors)
+    chunk_size = max_batch_size
+    all_steps = []
+    for phase in [0.0, torch.pi / 2, torch.pi, 3 * torch.pi / 2]:
+        step_chunks = []
+        for start in range(0, N, chunk_size):
+            end = min(start + chunk_size, N)
+            chunk = base_slm_patterns[start:end] + phase
+            step_chunks.append(tm_system.forward_model_slm(
+                chunk,
+                active_polarization='both',
+                **forward_kwargs
+            ))
+        all_steps.append(torch.cat(step_chunks, dim=0))
+    return torch.stack(all_steps, dim=1)
 
 
 def extract_complex_interference_4step(intensities_4step: torch.Tensor) -> torch.Tensor:
@@ -1290,6 +1310,9 @@ def optimize_tm_internal_reference_4step(
     real_tm: Optional[torch.Tensor] = None,
     test_slm_patterns: Optional[torch.Tensor] = None,
     test_complex_targets: Optional[torch.Tensor] = None,
+    raw_intensity_targets: Optional[torch.Tensor] = None,
+    test_raw_intensities: Optional[torch.Tensor] = None,
+    lambda_intensity: float = 0.0,
     **forward_kwargs
 ) -> Dict:
 
@@ -1329,6 +1352,8 @@ def optimize_tm_internal_reference_4step(
 
     optimizer = optim.Adam(param_groups)
     criterion_cosine = ComplexCosineLoss()
+    # Mini-batch S-VARPRO flattens each sample to vectors, so use 2D correlation over feature axis.
+    criterion_intensity = PearsonCorrelationLoss(dim=1, center=True)
 
     num_measurements = base_slm_patterns.shape[0]
     num_batches = (num_measurements + batch_size - 1) // batch_size
@@ -1362,29 +1387,27 @@ def optimize_tm_internal_reference_4step(
             E_mod_x, E_mod_y = E_mod[:, image_plane_index, 0], E_mod[:, image_plane_index, 1]
             E_ref_x, E_ref_y = E_ref[:, image_plane_index, 0], E_ref[:, image_plane_index, 1]
 
-            # Construct interference prediction
+            # 1. Complex Cosine Loss (Relative Holography)
             Y_pred = (E_mod_x * torch.conj(E_ref_x)) + (E_mod_y * torch.conj(E_ref_y))
             target_slice = batch_target[:, image_plane_index] if batch_target.dim() == 4 else batch_target
 
-            # --- Scale-Invariant Normalized Complex MSE ---
-            # Normalizing fields to unit norm ensures massive, healthy gradients even when initialization is random.
-            norm_Y = torch.norm(Y_pred, dim=(1, 2), keepdim=True) + 1e-12
-            norm_T = torch.norm(target_slice, dim=(1, 2), keepdim=True) + 1e-12
+            Y_pred_flat = Y_pred.reshape(Y_pred.shape[0], -1)
+            target_flat = target_slice.reshape(target_slice.shape[0], -1)
+            loss_data = criterion_cosine(Y_pred_flat, target_flat)
 
-            Y_pred_norm = Y_pred / norm_Y
-            target_norm = target_slice / norm_T
+            # 2. Pearson Correlation Loss (Absolute Intensity Anchor)
+            loss_intensity = 0.0
+            if raw_intensity_targets is not None:
+                batch_raw_target = raw_intensity_targets[batch_idx].detach()
+                raw_target_slice = batch_raw_target[:, image_plane_index] if batch_raw_target.dim() == 4 else batch_raw_target
 
-            # Align global phase without collapsing magnitude
-            with torch.no_grad():
-                inner = torch.sum(Y_pred_norm * torch.conj(target_norm), dim=(1, 2), keepdim=True)
-                phase_shift = inner / (torch.abs(inner) + 1e-12)
+                # Calculate intensity directly from the fields (saves a forward pass)
+                I_pred = torch.abs(E_mod_x + E_ref_x)**2 + torch.abs(E_mod_y + E_ref_y)**2
 
-            Y_pred_aligned = Y_pred_norm * phase_shift
+                loss_intensity = criterion_intensity(I_pred, raw_target_slice)
 
-            # Cosine similarity loss (1 - |cosine_sim|), scale/phase invariant
-            Y_pred_flat = Y_pred_aligned.reshape(Y_pred_aligned.shape[0], -1)
-            target_flat = target_norm.reshape(target_norm.shape[0], -1)
-            loss = criterion_cosine(Y_pred_flat, target_flat)
+            # Total Loss
+            loss = loss_data + (lambda_intensity * loss_intensity)
 
             loss.backward()
             optimizer.step()
@@ -1413,19 +1436,17 @@ def optimize_tm_internal_reference_4step(
                 Y_pred_test = (E_mod_x_t * torch.conj(E_ref_x_t)) + (E_mod_y_t * torch.conj(E_ref_y_t))
                 target_test = test_complex_targets[:, image_plane_index] if test_complex_targets.dim() == 4 else test_complex_targets
 
-                norm_Y_t = torch.norm(Y_pred_test, dim=(1, 2), keepdim=True) + 1e-12
-                norm_T_t = torch.norm(target_test, dim=(1, 2), keepdim=True) + 1e-12
+                Y_pred_flat_t = Y_pred_test.reshape(Y_pred_test.shape[0], -1)
+                target_flat_t = target_test.reshape(target_test.shape[0], -1)
+                test_loss_data = criterion_cosine(Y_pred_flat_t, target_flat_t).item()
 
-                Y_pred_norm_t = Y_pred_test / norm_Y_t
-                target_norm_t = target_test / norm_T_t
+                test_loss_intensity = 0.0
+                if test_raw_intensities is not None:
+                    raw_test_slice = test_raw_intensities[:, image_plane_index] if test_raw_intensities.dim() == 4 else test_raw_intensities
+                    I_pred_test = torch.abs(E_mod_x_t + E_ref_x_t)**2 + torch.abs(E_mod_y_t + E_ref_y_t)**2
+                    test_loss_intensity = criterion_intensity(I_pred_test, raw_test_slice).item()
 
-                inner_t = torch.sum(Y_pred_norm_t * torch.conj(target_norm_t), dim=(1, 2), keepdim=True)
-                phase_shift_t = inner_t / (torch.abs(inner_t) + 1e-12)
-
-                Y_pred_aligned_t = Y_pred_norm_t * phase_shift_t
-                Y_pred_flat_t = Y_pred_aligned_t.reshape(Y_pred_aligned_t.shape[0], -1)
-                target_flat_t = target_norm_t.reshape(target_norm_t.shape[0], -1)
-                test_loss = criterion_cosine(Y_pred_flat_t, target_flat_t).item()
+                test_loss = test_loss_data + lambda_intensity * test_loss_intensity
 
             history['test_losses'].append(test_loss)
             test_loss_str = f", Test Loss={test_loss:.6f}"
@@ -1696,7 +1717,278 @@ def optimize_tm_alternating_with_aberrations(
     return history
 
 
-def main():
+
+def optimize_tm_lifted_als_4step(
+    tm_system: TMMeasurementSystem,
+    base_slm_patterns: torch.Tensor,
+    complex_interference_targets: torch.Tensor,
+    raw_intensity_targets: torch.Tensor,
+    reference_intensity_target: torch.Tensor,  # The isolated y-polarization measurement
+    num_epochs: int = 100,
+    burn_in_epochs: int = 80,
+    inner_als_steps: int = 3,
+    inner_phys_steps: int = 1,
+    learning_rate_phys: float = 0.001,
+    ridge_alpha: float = 1e-4,
+    batch_size: int = 256,
+    test_slm_patterns: Optional[torch.Tensor] = None,
+    test_complex_targets: Optional[torch.Tensor] = None,
+    test_raw_intensities: Optional[torch.Tensor] = None,
+    lambda_intensity: float = 0.5,
+    **forward_kwargs) -> Dict:
+    
+    device = base_slm_patterns.device
+    N_samples = base_slm_patterns.shape[0]
+    N_modes = len(tm_system.guided_modes)
+    num_batches = (N_samples + batch_size - 1) // batch_size
+    
+    clean_forward_kwargs = dict(forward_kwargs)
+    clean_forward_kwargs.pop("use_internal_params", None)
+    
+    print("="*60)
+    print(f"Starting Split-Variable ALS with Exact 1D Reference Amplitude Anchor...")
+    print("="*60)
+
+    tm_system._optimized_tm_param.requires_grad_(False)
+    phys_params = [p for n, p in tm_system.named_parameters() if p.requires_grad and '_optimized_tm_param' not in n]
+
+    criterion_cosine = ComplexCosineLoss()
+    criterion_intensity = PearsonCorrelationLoss(dim=(1, 2), center=True)
+
+    # Prepare dual-plane targets: W[p] has shape (H*W, N_samples)
+    if complex_interference_targets.dim() == 3:
+        complex_interference_targets = complex_interference_targets.unsqueeze(0)
+    if raw_intensity_targets.dim() == 3:
+        raw_intensity_targets = raw_intensity_targets.unsqueeze(0)
+    if reference_intensity_target.dim() == 4:
+        reference_intensity_target = reference_intensity_target.squeeze(0)
+
+    W = [complex_interference_targets[:, p].reshape(N_samples, -1).T for p in range(2)]
+    W_ref_base = [reference_intensity_target[p].reshape(-1) for p in range(2)]
+    
+    history = {'epoch_losses': [], 'tm_error': []}
+    T = tm_system.optimized_tm_tensor.clone().detach()
+
+    optimizer = optim.Adam(phys_params, lr=learning_rate_phys)
+    dummy_pattern = torch.zeros(1, *base_slm_patterns.shape[1:], device=device, dtype=base_slm_patterns.dtype)
+
+    # --- Scheduled ALS Loop ---
+    for epoch in range(num_epochs):
+        
+        # ==========================================
+        # PHASE 0: Dynamic Target Scaling & Basis Recomputation
+        # ==========================================
+        with torch.no_grad():
+            # Dynamically scale the isolated I_pi/2 measurement to match holography power split
+            sin_theta = torch.sin(tm_system.theta_before_slm.detach())
+            W_ref_scaled = W_ref_base  # * (sin_theta ** 2)
+
+            Z_ref = tm_system.slm_to_input_modes(dummy_pattern, active_polarization='y_only', use_internal_params=True, **clean_forward_kwargs)
+            
+            Z_slm_list = []
+            for i in range(num_batches):
+                start = i * batch_size
+                end = min(start + batch_size, N_samples)
+                batch_Z = tm_system.slm_to_input_modes(base_slm_patterns[start:end], active_polarization='x_only', use_internal_params=True, **clean_forward_kwargs)
+                Z_slm_list.append(batch_Z)
+            Z_slm = torch.cat(Z_slm_list, dim=1)
+
+            I_modes = torch.eye(N_modes, dtype=torch.complex64, device=device)
+            P_out_complex = tm_system.output_modes_to_intensities(I_modes, return_complex_field=True, use_internal_params=True)
+            P_out_x = [P_out_complex[:, p, 0].reshape(N_modes, -1).T for p in range(2)]
+            P_out_y = [P_out_complex[:, p, 1].reshape(N_modes, -1).T for p in range(2)]
+            P_out_x_H = [torch.conj(P_out_x[p].T) for p in range(2)]
+            P_out_y_H = [torch.conj(P_out_y[p].T) for p in range(2)]
+            gamma = torch.mean(torch.abs(W[0]) ** 2) / (torch.mean(torch.abs(W[1]) ** 2) + 1e-12)
+
+            Y_sig = T @ Z_slm
+            Y_ref = T @ Z_ref
+
+        # ==========================================
+        # PHASE A: Multi-Step Pure LS Core
+        # ==========================================
+        for ias in range(inner_als_steps):
+            with torch.no_grad():
+                # 1. Y_sig Update
+                A_H_A_total = torch.zeros((N_modes, N_modes), dtype=torch.complex64, device=device)
+                A_H_W_total = torch.zeros((N_modes, N_samples), dtype=torch.complex64, device=device)
+                for p in range(2):
+                    plane_weight = 1.0 if p == 0 else gamma
+                    E_ref_x_p = P_out_x[p] @ Y_ref
+                    E_ref_y_p = P_out_y[p] @ Y_ref
+                    A_ref_p = torch.conj(E_ref_x_p) * P_out_x[p] + torch.conj(E_ref_y_p) * P_out_y[p]
+                    A_H_A_total = A_H_A_total + plane_weight * (A_ref_p.T.conj() @ A_ref_p)
+                    A_H_W_total = A_H_W_total + plane_weight * (A_ref_p.T.conj() @ W[p])
+                reg_A = ridge_alpha * torch.max(torch.abs(torch.diag(A_H_A_total))) * torch.eye(N_modes, dtype=torch.complex64, device=device)
+                Y_sig = torch.linalg.solve(A_H_A_total + reg_A, A_H_W_total)
+
+                # 2. Y_ref Update (Constrained by ALL holography images)
+                M_sig_total = torch.zeros((N_modes, N_modes), dtype=torch.complex64, device=device)
+                V_sig_total = torch.zeros((N_modes, 1), dtype=torch.complex64, device=device)
+                for p in range(2):
+                    plane_weight = 1.0 if p == 0 else gamma
+                    E_sig_x_p = P_out_x[p] @ Y_sig
+                    E_sig_y_p = P_out_y[p] @ Y_sig
+                    I_sig_x_p = torch.sum(torch.abs(E_sig_x_p) ** 2, dim=1)
+                    I_sig_y_p = torch.sum(torch.abs(E_sig_y_p) ** 2, dim=1)
+                    I_sig_xy_p = torch.sum(E_sig_x_p * torch.conj(E_sig_y_p), dim=1)
+                    M_sig_p = P_out_x_H[p] @ (I_sig_x_p.unsqueeze(1) * P_out_x[p]) + \
+                              P_out_y_H[p] @ (I_sig_y_p.unsqueeze(1) * P_out_y[p]) + \
+                              P_out_x_H[p] @ (I_sig_xy_p.unsqueeze(1) * P_out_y[p]) + \
+                              P_out_y_H[p] @ (torch.conj(I_sig_xy_p).unsqueeze(1) * P_out_x[p])
+                    S_x_p = torch.sum(E_sig_x_p * torch.conj(W[p]), dim=1)
+                    S_y_p = torch.sum(E_sig_y_p * torch.conj(W[p]), dim=1)
+                    V_sig_p = P_out_x_H[p] @ S_x_p.unsqueeze(1) + P_out_y_H[p] @ S_y_p.unsqueeze(1)
+                    M_sig_total = M_sig_total + plane_weight * M_sig_p
+                    V_sig_total = V_sig_total + plane_weight * V_sig_p
+
+                reg_M = ridge_alpha * torch.max(torch.abs(torch.diag(M_sig_total))) * torch.eye(N_modes, dtype=torch.complex64, device=device)
+                Y_ref = torch.linalg.solve(M_sig_total + reg_M, V_sig_total)
+                
+                # 3. Global Phase Anchor
+                # phase_align = torch.sum(torch.conj(Y_ref) * Z_ref)
+                # phase_factor = phase_align / (torch.abs(phase_align) + 1e-12)
+                # Y_ref = Y_ref * phase_factor
+
+                # 4. Exact 1D Amplitude Anchor using the new I_pi/2 measurement
+                I_ref_base = []
+                for p in range(2):
+                    E_ref_x_base_p = P_out_x[p] @ Y_ref
+                    E_ref_y_base_p = P_out_y[p] @ Y_ref
+                    I_ref_base.append((torch.abs(E_ref_x_base_p) ** 2 + torch.abs(E_ref_y_base_p) ** 2).reshape(-1))
+
+                # Closed-form minimization of weighted dual-plane error
+                numerator = 0.0
+                denominator = 1e-12
+                for p in range(2):
+                    plane_weight = 1.0 if p == 0 else gamma
+                    numerator = numerator + plane_weight * torch.sum(I_ref_base[p] * W_ref_scaled[p])
+                    denominator = denominator + plane_weight * torch.sum(I_ref_base[p] ** 2)
+                g_sq = numerator / denominator
+                g_val = torch.sqrt(torch.clamp(g_sq, min=1e-8, max=1e8))
+                
+                # Apply the exact amplitude split
+                g_final = g_val.to(torch.complex64)
+                Y_sig = Y_sig / g_final
+                Y_ref = Y_ref * g_final
+
+                # 5. TM Update
+                weight = (N_samples/3) ** 0.5
+                Z_comb = torch.cat([Z_slm, Z_ref * weight], dim=1)
+                Y_comb = torch.cat([Y_sig, Y_ref * weight], dim=1)
+                
+                Z_H_Z = Z_comb @ Z_comb.T.conj()
+                reg_T = ridge_alpha * torch.max(torch.abs(torch.diag(Z_H_Z))) * torch.eye(N_modes, dtype=torch.complex64, device=device)
+                T = torch.linalg.solve(Z_H_Z + reg_T, Z_comb @ Y_comb.T.conj()).T.conj()
+                
+                Y_sig = T @ Z_slm
+                Y_ref = T @ Z_ref
+        
+        with torch.no_grad():
+            tm_system.optimized_tm_tensor = T
+            weighted_complex_losses = []
+            for p in range(2):
+                plane_weight = 1.0 if p == 0 else gamma
+                E_mod_x_p, E_mod_y_p = P_out_x[p] @ Y_sig, P_out_y[p] @ Y_sig
+                E_ref_x_eval_p, E_ref_y_eval_p = P_out_x[p] @ Y_ref, P_out_y[p] @ Y_ref
+                Y_pred_p = (E_mod_x_p * torch.conj(E_ref_x_eval_p)) + (E_mod_y_p * torch.conj(E_ref_y_eval_p))
+                loss_complex_p = 1.0 - torch.mean(
+                    torch.abs(torch.sum(Y_pred_p.T * torch.conj(W[p].T), dim=1)) /
+                    (torch.norm(Y_pred_p.T, dim=1) * torch.norm(W[p].T, dim=1) + 1e-8)
+                )
+                weighted_complex_losses.append(plane_weight * loss_complex_p)
+            loss_complex_ls = weighted_complex_losses[0] + weighted_complex_losses[1]
+
+        # ==========================================
+        # PHASE 1.5: Calculate Optimal Input Targets (Stable Cholesky Solve)
+        # ==========================================
+        with torch.no_grad():
+            T_H_T = T.T.conj() @ T
+            reg_Z = ridge_alpha * torch.max(torch.abs(torch.diag(T_H_T))) * torch.eye(N_modes, dtype=torch.complex64, device=device)
+            L_Z = torch.linalg.cholesky(T_H_T + reg_Z)
+            Z_target_sig = torch.cholesky_solve(T.T.conj() @ Y_sig, L_Z)
+            Z_target_ref = torch.cholesky_solve(T.T.conj() @ Y_ref, L_Z)
+
+        # ==========================================
+        # PHASE B: Decoupled Aberration Anchor (Full-Batch Gradient Accumulation)
+        # ==========================================
+        total_phys_loss = 0.0
+        
+        if epoch < burn_in_epochs:
+            status_msg = "[Burn-In: LS Only]"
+        else:
+            status_msg = "[Split-Variable Fine-Tuning]"
+            for _ in range(inner_phys_steps):
+                optimizer.zero_grad(set_to_none=True)
+                epoch_loss_accum = 0.0
+
+                for i in range(num_batches):
+                    start = i * batch_size
+                    end = min(start + batch_size, N_samples)
+                    batch_len = end - start
+
+                    batch_slm = base_slm_patterns[start:end].detach()
+                    batch_target_raw = raw_intensity_targets[start:end].detach()
+                    batch_target_complex = complex_interference_targets[start:end].detach()
+
+                    # 1. INPUT NETWORK (SLM -> Z_pred). Target is Z_target.
+                    Z_pred_sig = tm_system.slm_to_input_modes(batch_slm, active_polarization='x_only', use_internal_params=True, **clean_forward_kwargs)
+                    Z_pred_ref = tm_system.slm_to_input_modes(dummy_pattern, active_polarization='y_only', use_internal_params=True, **clean_forward_kwargs)
+                    
+                    loss_input_sig = criterion_cosine(Z_pred_sig.T, Z_target_sig[:, start:end].T)
+                    loss_input_ref = criterion_cosine(Z_pred_ref.T, Z_target_ref.T)
+                    loss_input = loss_input_sig + loss_input_ref
+
+                    # 2. OUTPUT NETWORK (Y_fixed -> Camera). Target is Lab Data.
+                    E_mod = tm_system.output_modes_to_intensities(Y_sig[:, start:end].detach(), return_complex_field=True, use_internal_params=True)
+                    E_ref = tm_system.output_modes_to_intensities(Y_ref.detach(), return_complex_field=True, use_internal_params=True)
+                    E_mod_x, E_mod_y = E_mod[:, :, 0], E_mod[:, :, 1]
+                    E_ref_x, E_ref_y = E_ref[:, :, 0], E_ref[:, :, 1]
+
+                    sin_theta_opt = torch.sin(tm_system.theta_before_slm)
+                    W_ref_opt_scaled = [W_ref_base[p] * (sin_theta_opt ** 2) for p in range(2)]
+                    plane_losses = []
+                    for p in range(2):
+                        I_pred_p = torch.abs(E_mod_x[:, p] + E_ref_x[:, p])**2 + torch.abs(E_mod_y[:, p] + E_ref_y[:, p])**2
+                        loss_intensity_p = criterion_intensity(I_pred_p, batch_target_raw[:, p])
+
+                        I_pred_ref_p = torch.abs(E_ref_x[:, p])**2 + torch.abs(E_ref_y[:, p])**2
+                        loss_intensity_ref_p = criterion_intensity(I_pred_ref_p, W_ref_opt_scaled[p].unsqueeze(0))
+
+                        Y_pred_batch_p = (E_mod_x[:, p] * torch.conj(E_ref_x[:, p])) + (E_mod_y[:, p] * torch.conj(E_ref_y[:, p]))
+                        Y_pred_flat_p = Y_pred_batch_p.reshape(Y_pred_batch_p.shape[0], -1)
+                        target_flat_complex_p = batch_target_complex[:, p].reshape(batch_target_complex.shape[0], -1)
+                        loss_hologram_p = criterion_cosine(Y_pred_flat_p, target_flat_complex_p)
+
+                        plane_losses.append(loss_hologram_p + lambda_intensity * (loss_intensity_p + loss_intensity_ref_p))
+
+                    loss_output = plane_losses[0] + gamma * plane_losses[1]
+                    
+                    # 3. COMBINED DECOUPLED LOSS
+                    loss_total = loss_input + loss_output
+                    scaled_loss = loss_total * (batch_len / N_samples)
+                    scaled_loss.backward()
+
+                    epoch_loss_accum += scaled_loss.item()
+
+                torch.nn.utils.clip_grad_norm_(phys_params, max_norm=1.0)
+                optimizer.step()
+                total_phys_loss = epoch_loss_accum
+
+        tm_err = 0.0
+        if hasattr(tm_system, 'real_tm_tensor'):
+            tm_err, _ = calculate_phase_aligned_frobenius_norm(tm_system.real_tm_tensor, tm_system.optimized_tm)
+            
+        history['epoch_losses'].append(loss_complex_ls.item())
+        history['tm_error'].append(tm_err)
+        
+        adam_loss_str = f"{total_phys_loss:.5f}" if epoch >= burn_in_epochs else "N/A"
+        print(f"Epoch {epoch+1}/{num_epochs} {status_msg}: LS Data Loss={loss_complex_ls.item():.5f}, Adam Loss={adam_loss_str}, TM Error={tm_err:.5f}")
+
+    return history
+
+
+def main(optimization_mode: str = "4step_internal"):
     """
     Example usage of the TM retrieval system.
     """
@@ -1766,12 +2058,12 @@ def main():
     )
 
     # ===== 4-step internal reference TM retrieval simulation =====
-    run_4step_simulation = True
-    if run_4step_simulation:
+    optimization_mode = "4step_lifted_als"
+    if optimization_mode in ("4step_internal", "4step_lifted_als"):
         print("\n" + "="*60)
         print("4-step internal reference TM retrieval simulation")
         print("="*60)
-        num_4step_train = 4000
+        num_4step_train = 3000
         num_4step_test = 200
         base_slm_patterns_4step = torch.rand(
             num_4step_train + num_4step_test,
@@ -1780,10 +2072,13 @@ def main():
         ) * 2 * np.pi
         # Simulate 4-step measurements using the real TM with same aberrations/amplitude as optimizer.
         # no_grad: we only need target values, not a computation graph (saves large GPU memory).
+        # Chunk when enforce_symmetric_tm to avoid OOM (symmetric path uses 2x field tensors).
+        max_batch_4step = 512 if getattr(tm_system, 'enforce_symmetric_tm', False) else None
         with torch.no_grad():
             intensities_4step = simulate_phase_stepped_measurements(
                 tm_system,
                 base_slm_patterns_4step,
+                max_batch_size=max_batch_4step,
                 tm=tm_system.real_tm_tensor,
                 use_internal_params=True,
                 apply_slm_amplitude=True
@@ -1793,29 +2088,67 @@ def main():
         train_targets_4step = complex_targets_4step[:num_4step_train]
         test_slm_4step = base_slm_patterns_4step[num_4step_train:num_4step_train + num_4step_test]
         test_targets_4step = complex_targets_4step[num_4step_train:num_4step_train + num_4step_test]
+        train_raw_intensities_4step = intensities_4step[:num_4step_train, 0]
+        test_raw_intensities_4step = intensities_4step[num_4step_train:num_4step_train + num_4step_test, 0]
+        with torch.no_grad():
+            reference_intensity_4step = tm_system.forward_model_slm(
+                torch.zeros(
+                    1,
+                    grid_params['ny'],
+                    grid_params['nx'],
+                    device=tm_system.device
+                ),
+                active_polarization='y_only',
+                tm=tm_system.real_tm_tensor,
+                use_internal_params=True,
+                apply_slm_amplitude=True
+            ).squeeze(0)
         print(f"Train patterns: {train_slm_4step.shape[0]}, test patterns: {test_slm_4step.shape[0]}")
-        history_4step = optimize_tm_internal_reference_4step(
-            tm_system=tm_system,
-            base_slm_patterns=train_slm_4step,
-            complex_interference_targets=train_targets_4step,
-            num_epochs=50,
-            learning_rate=1e-2,
-            learning_rate_phys=1e-2,
-            learning_rate_aberrations=1e-2,
-            batch_size=128,
-            image_plane_index=0,
-            optimize_aberrations=True,
-            real_tm=tm_system.real_tm_tensor,
-            test_slm_patterns=test_slm_4step,
-            test_complex_targets=test_targets_4step,
-            use_internal_params=True,
-            apply_slm_amplitude=True
-        )
+        if optimization_mode == "4step_internal":
+            history_4step = optimize_tm_internal_reference_4step(
+                tm_system=tm_system,
+                base_slm_patterns=train_slm_4step,
+                complex_interference_targets=train_targets_4step,
+                num_epochs=100,
+                learning_rate=1e-2,
+                learning_rate_phys=1e-2,
+                learning_rate_aberrations=1e-3,
+                batch_size=128,
+                image_plane_index=0,
+                optimize_aberrations=True,
+                real_tm=tm_system.real_tm_tensor,
+                test_slm_patterns=test_slm_4step,
+                test_complex_targets=test_targets_4step,
+                raw_intensity_targets=train_raw_intensities_4step,
+                test_raw_intensities=test_raw_intensities_4step,
+                lambda_intensity=0.5,
+                use_internal_params=True,
+                apply_slm_amplitude=True
+            )
+        elif optimization_mode == "4step_lifted_als":
+            history_4step = optimize_tm_lifted_als_4step(
+                tm_system=tm_system,
+                base_slm_patterns=train_slm_4step,
+                complex_interference_targets=train_targets_4step,
+                raw_intensity_targets=train_raw_intensities_4step,
+                reference_intensity_target=reference_intensity_4step,
+                num_epochs=300,
+                learning_rate_phys=0.001,
+                ridge_alpha=1e-4,
+                batch_size=256,
+                test_slm_patterns=test_slm_4step,
+                test_complex_targets=test_targets_4step,
+                test_raw_intensities=test_raw_intensities_4step,
+                use_internal_params=True,
+                apply_slm_amplitude=True
+            )
+        else:
+            raise ValueError(f"Unknown 4-step optimization mode: {optimization_mode}")
         print("4-step simulation done.")
         print("="*60 + "\n")
 
     # ===== SLM Pattern Optimization =====
-    else:
+    elif optimization_mode == "slm":
         # Set these flags to test different configurations:
         use_aberrations_in_target = True  # If True, targets have aberrations; if False, no aberrations
         optimize_aberrations = True       # If True, optimize TM+aberrations; if False, optimize TM only
@@ -1841,12 +2174,14 @@ def main():
             intensity_targets=intensity_measurements,
             num_epochs=100,
             learning_rate=0.001,
-            batch_size=512,
+            batch_size=256,
             planes='both',
             optimize_aberrations=optimize_aberrations
         )
         end_time = time.time()
         print(f"Optimization time: {end_time - start_time:.2f} seconds")
+    else:
+        raise ValueError(f"Unknown optimization_mode: {optimization_mode}")
     
     
     # Evaluate results

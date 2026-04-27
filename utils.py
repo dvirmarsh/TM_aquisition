@@ -8,6 +8,8 @@ import hashlib
 from typing import Dict, Tuple, Optional
 from tqdm import tqdm
 from mode_solver import find_guided_modes, calculate_wave_distribution
+import h5py
+from sklearn.model_selection import train_test_split
 
 # --- 1. Define the ZoomFFT Class ---
 class ZoomFFT2D_Optimizable(nn.Module):
@@ -299,7 +301,8 @@ def calculate_mode_fields(
     # 2: [0]=image plane, [1]=fourier plane (or 1 if image_plane_only)
     # 2: [0]=E_x, [1]=E_y
     num_planes = 1 if image_plane_only else 2
-    mode_fields = torch.zeros((num_planes, 2, H, W, N_modes), dtype=torch.complex64, device=device)
+    # Build on CPU to avoid CUDA OOM when GPU is already full (e.g. sweep runs)
+    mode_fields = torch.zeros((num_planes, 2, H, W, N_modes), dtype=torch.complex64, device='cpu')
     for i, mode in tqdm(enumerate(guided_modes), total=N_modes, desc="Calculating mode fields"):
         fields = calculate_wave_distribution(mode, fiber_params, X, Y)
         r = np.sqrt(X**2 + Y**2)
@@ -310,8 +313,8 @@ def calculate_mode_fields(
         E_y = E_r * np.sin(theta) + E_theta * np.cos(theta)
         # Normalize using intensity I = |E_x|^2 + |E_y|^2
         I_tot = np.sum(np.abs(E_x)**2 + np.abs(E_y)**2)
-        E_x = torch.tensor(E_x / np.sqrt(I_tot), dtype=torch.complex64, device=device)
-        E_y = torch.tensor(E_y / np.sqrt(I_tot), dtype=torch.complex64, device=device)
+        E_x = torch.tensor(E_x / np.sqrt(I_tot), dtype=torch.complex64, device='cpu')
+        E_y = torch.tensor(E_y / np.sqrt(I_tot), dtype=torch.complex64, device='cpu')
         # Image plane fields
         mode_fields[0, 0, :, :, i] = E_x
         mode_fields[0, 1, :, :, i] = E_y
@@ -319,7 +322,7 @@ def calculate_mode_fields(
         if not image_plane_only:
             mode_fields[1, 0, :, :, i] = fourier_plane(E_x, N_pad, mult_factor)
             mode_fields[1, 1, :, :, i] = fourier_plane(E_y, N_pad, mult_factor)
-    return mode_fields
+    return mode_fields.to(device)
 
 
 def get_mode_fields_filename(fiber_params: Dict, grid_params: Dict) -> str:
@@ -375,7 +378,8 @@ def load_or_calculate_mode_fields(
     if os.path.exists(filename):
         print(f"Loading mode_fields from {filename}...")
         try:
-            mode_fields = torch.load(filename, map_location=device)
+            # Load to CPU first to avoid CUDA OOM when GPU is already full (e.g. sweep runs)
+            mode_fields = torch.load(filename, map_location='cpu')
             expected_modes = len(guided_modes)
             if mode_fields.dim() == 5 and mode_fields.shape[-1] != expected_modes:
                 # Legacy layout: (N_modes, 2, 4, H, W) or (N_modes, 2, 2, H, W) -> convert to (2, 2, H, W, N_modes)
@@ -402,7 +406,7 @@ def load_or_calculate_mode_fields(
                 print("Extracted image plane only (SLM mode).")
             
             print(f"Successfully loaded mode_fields with shape: {mode_fields.shape}")
-            return mode_fields
+            return mode_fields.to(device)
         except Exception as e:
             print(f"Error loading mode_fields from {filename}: {e}")
             print("Will recalculate mode_fields...")
@@ -658,3 +662,317 @@ def plot_training_history(history: Dict):
         print(f"TM Error Reduction (Phase-Aligned): {tm_frobenius_error_aligned[0]/tm_frobenius_error_aligned[-1]:.2f}x")
     
     print("=" * 35)
+
+# Functions to load and process real MMF measurement data from H5 files.
+def load_real_mmf_data(h5_file_path: str, experiment_group: str, train_test_split_ratio: float = 0.8, random_seed: int = 42, im_factor: float = 1.0):
+    """
+    Load real MMF measurement data from an H5 file.
+    
+    Args:
+        h5_file_path: Path to the H5 file containing the measurements
+        experiment_group: Name of the group/experiment to load (e.g., 'experiment_1', 'group_0')
+        train_test_split_ratio: Ratio of data to use for training (default 0.8 = 80% train, 20% test)
+        random_seed: Random seed for train/test split reproducibility
+    
+    Returns:
+        Tuple of (train_data, test_data) where each is a dict with:
+            - 'slm_patterns': SLM phase masks (N, H, W)
+            - 'intensity_image': Image plane intensities (N, H, W)
+            - 'intensity_fourier': Fourier plane intensities (N, H, W)
+            - 'intensity_targets': Combined intensities (N, 2, H, W) where [:, 0] = image, [:, 1] = fourier
+    """
+    print(f"Loading data from {h5_file_path}, group: {experiment_group}")
+    
+    with h5py.File(h5_file_path, 'r') as f:
+        if experiment_group not in f.keys():
+            raise ValueError(f"Group '{experiment_group}' not found in H5 file. Available groups: {list(f.keys())}")
+        
+        group = f[experiment_group]
+        
+        # Try different possible dataset names
+        slm_key = None
+        img_key = None
+        fourier_key = None
+        
+        for key in group.keys():
+            key_lower = key.lower()
+            if 'slm' in key_lower or ('phase' in key_lower or 'mask' in key_lower):
+                slm_key = key
+            elif 'image' in key_lower and 'transmission' in key_lower:
+                img_key = key
+            elif 'fourier' in key_lower and 'transmission' in key_lower:
+                fourier_key = key
+        
+        # Fallback to default names if not found
+        if slm_key is None:
+            slm_key = 'slm_phase_mask'
+        if img_key is None:
+            img_key = 'transmission_image_intensity'
+        if fourier_key is None:
+            fourier_key = 'transmission_fourier_intensity'
+        
+        # Load the three datasets
+        slm_phase = group[slm_key][:]  # (N, H, W)
+        slm_phase = np.flip(slm_phase, axis=(-2,-1))  # flip because of the 4F system
+        intensity_image = group[img_key][:]  # (N, H, W)
+        intensity_image = np.flip(intensity_image, axis=(-2,-1))  # flip because of the 4F system and BS
+        intensity_fourier = group[fourier_key][:]  # (N, H, W)
+        # intensity_fourier = np.flip(intensity_fourier, axis=(-2))  # flip because of the 4F system and BS
+        
+        print(f"Using dataset keys: {slm_key}, {img_key}, {fourier_key}")
+        
+        print(f"Loaded data shapes:")
+        print(f"  SLM phase masks: {slm_phase.shape}, dtype: {slm_phase.dtype}")
+        print(f"  Image intensities: {intensity_image.shape}, dtype: {intensity_image.dtype}")
+        print(f"  Fourier intensities: {intensity_fourier.shape}, dtype: {intensity_fourier.dtype}")
+        
+        # Convert uint8 phase masks to phase values: 0-255 -> 0 to 2π*255/256
+        # Formula: phase = uint8_value * (2π * 255/256) / 255 = uint8_value * 2π / 256
+        if slm_phase.dtype == np.uint8 or slm_phase.dtype == 'uint8':
+            print("Converting uint8 phase masks to phase values (0-255 -> 0 to 2π*255/256)...")
+            slm_phase = slm_phase.astype(np.float32) * 2 * np.pi / 256.0
+            print(f"slm_phase max: {slm_phase.max()} | slm_phase min: {slm_phase.min()}")
+        elif slm_phase.max() <= 1.0 and slm_phase.min() >= 0.0:
+            # If already normalized to [0, 1], scale to [0, 2π]
+            print("Scaling phase masks from [0, 1] to [0, 2π]...")
+            slm_phase = slm_phase.astype(np.float32) * 2 * np.pi
+        else:
+            # Assume already in phase range [0, 2π]
+            slm_phase = slm_phase.astype(np.float32)
+        
+        # Combine intensities: (N, 2, H, W) where [:, 0] = image, [:, 1] = fourier
+        intensity_targets = np.stack([intensity_image, intensity_fourier], axis=1)  # (N, 2, H, W)
+        
+        # Convert to torch tensors
+        slm_phase_tensor = torch.from_numpy(slm_phase).float()
+        intensity_targets_tensor = torch.from_numpy(intensity_targets).float()
+        intensity_targets_tensor[:,0] = intensity_targets_tensor[:,0] * im_factor
+        # Split into train and test
+        num_samples = slm_phase_tensor.shape[0]
+        indices = np.arange(num_samples)
+        train_indices, test_indices = train_test_split(
+            indices, 
+            test_size=1 - train_test_split_ratio, 
+            random_state=random_seed
+        )
+        
+        train_data = {
+            'slm_patterns': slm_phase_tensor[train_indices],
+            'intensity_image': torch.from_numpy(intensity_image[train_indices]).float(),
+            'intensity_fourier': torch.from_numpy(intensity_fourier[train_indices]).float(),
+            'intensity_targets': intensity_targets_tensor[train_indices]
+        }
+        
+        test_data = {
+            'slm_patterns': slm_phase_tensor[test_indices],
+            'intensity_image': torch.from_numpy(intensity_image[test_indices]).float(),
+            'intensity_fourier': torch.from_numpy(intensity_fourier[test_indices]).float(),
+            'intensity_targets': intensity_targets_tensor[test_indices]
+        }
+        
+        print(f"\nData split:")
+        print(f"  Training samples: {len(train_indices)} ({len(train_indices)/num_samples*100:.1f}%)")
+        print(f"  Test samples: {len(test_indices)} ({len(test_indices)/num_samples*100:.1f}%)")
+        
+        return train_data, test_data
+
+
+def list_h5_experiments(h5_file_path: str):
+    """
+    List all available experiment groups in an H5 file.
+    
+    Args:
+        h5_file_path: Path to the H5 file
+    
+    Returns:
+        List of group names
+    """
+    with h5py.File(h5_file_path, 'r') as f:
+        groups = list(f.keys())
+        print(f"Available experiment groups in {h5_file_path}:")
+        for i, group in enumerate(groups):
+            print(f"  {i}: {group}")
+        return groups
+
+def solve_fast_cholesky(Y: torch.Tensor, X: torch.Tensor, alpha: float = 1e-4) -> torch.Tensor:
+    """
+    Optimized solver for TM using Cholesky decomposition with ridge regularization.
+    
+    Solves T = Y @ X^dagger where X^dagger is the regularized pseudo-inverse.
+    Uses Cholesky decomposition for numerical stability and speed.
+    
+    Args:
+        Y: Output mode matrix, shape (N_modes, N_samples) - complex
+        X: Input mode matrix, shape (N_modes, N_samples) - complex
+        alpha: Regularization factor for ridge regression (default 1e-4)
+        
+    Returns:
+        T: Transmission matrix, shape (N_modes, N_modes) - complex
+    """
+    N = Y.shape[0]
+    
+    # Compute the Gram matrix G = X @ X^H (covariance of X)
+    G = X @ X.mH  # Shape (N_modes, N_modes)
+    
+    # Add scale-aware ridge regularization: A = G + alpha * max(|diag(G)|) * I
+    # Scaling by the strongest diagonal mode suppresses weak/noisy mode blow-up.
+    diag_max = torch.max(torch.abs(torch.diagonal(G)))
+    regularizer = alpha * diag_max * torch.eye(N, dtype=Y.dtype, device=Y.device)
+    A = G + regularizer
+    
+    # Compute RHS: Y @ X^H
+    rhs = Y @ X.mH  # Shape (N_modes, N_modes)
+    
+    # Solve A @ T^H = (Y @ X^H)^H for T^H
+    # This is equivalent to solving T @ A = Y @ X^H for T
+    target = rhs.mH  # Shape (N_modes, N_modes)
+    
+    # Cholesky decomposition: A = L @ L^H
+    L = torch.linalg.cholesky(A)
+    
+    # Solve A @ T^H = target using Cholesky factorization
+    T_conj = torch.cholesky_solve(target, L)
+    
+    # Return T (not T^H)
+    T = T_conj.mH.resolve_conj()
+    return T
+
+
+def run_spectral_initialization(
+    tm_system,
+    slm_patterns: torch.Tensor,
+    intensity_targets: torch.Tensor,
+    num_iters: int = 15,
+    num_inner_iters: int = 3,
+    ridge_alpha: float = 1e-4
+):
+    """
+    Implements the Enhanced Iterative Projection (Gerchberg-Saxton style) initialization.
+    
+    Algorithm (with nested inner loop for better convergence):
+    OUTER LOOP (num_iters):
+        INNER LOOP (num_inner_iters):
+            1. Generate Fields (Image & Fourier) from current Y estimate
+            2. Correct Amplitudes using Intensity Targets (keep Phase)
+            3. Project Corrected Fields back to Mode Space -> Y_new
+            4. Update Y estimate for next inner iteration
+        5. Update T to minimize ||Y_new - T @ X|| using Cholesky solver
+    
+    The inner loop refines field estimates in pixel space before committing to a T update,
+    improving convergence rate by 2-3x.
+
+    Args:
+        num_inner_iters: Number of pixel-space refinement iterations before T update (default: 3)
+
+    Mode basis: Uses image-plane modes from the original tm_system (tm_system.mode_fields).
+    When there is no Fourier plane (e.g. enforce_symmetric_tm=False), the Fourier plane
+    is added using the same ZoomFFT as in TMMeasurementSystem (see TM_retrieve.py).
+    """
+    print(f"Running Enhanced Spectral Initialization: {num_iters} outer iters, {num_inner_iters} inner iters per batch...")
+    
+    batch_size = 100  # Process in chunks to save memory
+    num_measurements = slm_patterns.shape[0]
+    num_batches = (num_measurements + batch_size - 1) // batch_size
+    with torch.no_grad():
+        # --- 0. Use image-plane modes from tm_system; add Fourier plane via ZoomFFT when missing ---
+        mode_basis = tm_system.mode_fields  # (1, 2, H, W, N_modes) or (2, 2, H, W, N_modes)
+        if mode_basis.shape[0] == 1:
+            # Same recipe as TM_retrieve.py:257-265 — ZoomFFT from image plane
+            z_fwd = tm_system._get_zoomfft_params_dict(tm_system.zoomfft_out_fwd_params)
+            image_plane = mode_basis  # (1, 2, H, W, N_modes)
+            fields_for_fft = image_plane.permute(4, 0, 1, 2, 3)  # (N_modes, 1, 2, H, W)
+            fourier_plane = tm_system.zoomfft['tran'](fields_for_fft, inverse=False, **z_fwd)  # (N_modes, 1, 2, H, W)
+            fourier_plane = fourier_plane * tm_system.mult_factor['tran']
+            fourier_plane = fourier_plane.permute(1, 2, 3, 4, 0)  # (1, 2, H, W, N_modes)
+            fourier_plane = fourier_plane.detach()
+            mode_basis = torch.cat([image_plane, fourier_plane], dim=0)  # (2, 2, H, W, N_modes)
+            print("Spectral init: added Fourier plane to mode basis (ZoomFFT, same as TM_retrieve).")
+        num_planes = mode_basis.shape[0]
+
+        # --- 1. Pre-calculate Input Modes Matrix X ---
+        # We need the full X matrix to solve for T later
+        X_list = []
+        for i in range(num_batches):
+            start = i * batch_size
+            end = min(start + batch_size, num_measurements)
+            batch_slm = slm_patterns[start:end]
+            # Get input modes (X)
+            batch_X = tm_system.slm_to_input_modes(batch_slm, use_internal_params=True)
+            X_list.append(batch_X) # (N_modes, Batch)
+        
+        X_full = torch.cat(X_list, dim=1) # (N_modes, Total_Samples)
+        
+        # Initialize Y estimate: Y = T_init @ X
+        Y_current = tm_system.optimized_tm @ X_full  # (N_modes, Total_Samples)
+        
+        # Pre-flatten mode basis for fast projection
+        basis_flat = mode_basis.view(num_planes, 2, -1, mode_basis.shape[-1])  # (Planes, Pol, H*W, Modes)
+        basis_flat_conj = torch.conj(basis_flat)
+        
+        # --- 2. Outer Loop: Update T ---
+        for k in range(num_iters):
+            # --- Inner Loop: Refine Y estimate in pixel space ---
+            for inner_k in range(num_inner_iters):
+                Y_refined_list = []
+                
+                # Process in batches to handle field calculations
+                for i in range(num_batches):
+                    start = i * batch_size
+                    end = min(start + batch_size, num_measurements)
+                    # Data for this batch
+                    batch_Y_current = Y_current[:, start:end]  # (N_modes, Batch)
+                    batch_target_intensity = intensity_targets[start:end] # (Batch, 2, H, W)
+                    
+                    # A. Generate Fields from current Y estimate
+                    # Shape: (Batch, Planes, Polarizations, H, W)
+                    fields = tm_system.calculate_fields_from_mode_dist(batch_Y_current)
+                    if num_planes == 2 and fields.shape[1] == 1:
+                        # Add Fourier plane via ZoomFFT (same as mode basis)
+                        z_fwd = tm_system._get_zoomfft_params_dict(tm_system.zoomfft_out_fwd_params)
+                        fourier_plane_fields = tm_system.zoomfft['tran'](fields, inverse=False, **z_fwd)
+                        fourier_plane_fields = fourier_plane_fields * tm_system.mult_factor['tran']
+                        fields = torch.cat([fields, fourier_plane_fields], dim=1)  # (B, 2, 2, H, W)
+                    
+                    # B. Amplitude Correction (Gerchberg-Saxton Step)
+                    # Keep phase, replace amplitude: |E_new| = sqrt(Target)
+                    current_amplitude = torch.sqrt(torch.sum(torch.abs(fields)**2, dim=2, keepdim=True)) # (Batch, Planes, 1, H, W)
+                    target_amplitude = torch.sqrt(batch_target_intensity).unsqueeze(2) # (Batch, Planes, 1, H, W)
+                    
+                    scale_factor = target_amplitude / (current_amplitude + 1e-8)
+                    fields_corrected = fields * scale_factor
+                    
+                    # C. Project Back to Modes (Y_refined)
+                    # Use pre-flattened conjugated basis
+                    B, P, Pol, H, W = fields_corrected.shape
+                    fields_flat = fields_corrected.view(B, P, Pol, -1)  # (B, P, Pol, H*W)
+                    
+                    # Project: Sum(Field * Conj(Basis)) using einsum
+                    Y_projections = torch.einsum('bpoh, pohm -> bpm', fields_flat, basis_flat_conj)
+                    
+                    # Normalize by mode powers
+                    Y_projections = Y_projections / tm_system.mode_powers.view(1, 1, -1)
+                    
+                    # Average estimates from Image and Fourier planes
+                    batch_Y_refined = torch.mean(Y_projections, dim=1).T  # (Modes, Batch)
+                    Y_refined_list.append(batch_Y_refined)
+                
+                # Update Y_current for next inner iteration
+                Y_current[:, :] = torch.cat(Y_refined_list, dim=1)
+            
+            # --- After inner loop convergence: Update T ---
+            # Minimize ||Y_current - T @ X|| via Cholesky solver
+            import time
+            t0 = time.time()
+            new_T = solve_fast_cholesky(Y_current, X_full, alpha=ridge_alpha)
+            t1 = time.time()
+            print(f"Solve fast cholesky time: {t1 - t0:.4f} seconds")
+            tm_system.optimized_tm_tensor = new_T
+            
+            # Re-initialize Y for next outer iteration: Y = T_new @ X
+            Y_current = new_T @ X_full
+            
+            # Print progress
+            if k % 5 == 0 or k == num_iters - 1:
+                print(f"  Init Outer Iter {k+1}/{num_iters}: T Updated (after {num_inner_iters} inner refinements)")
+
+    print("Spectral Initialization Complete.")
