@@ -318,53 +318,13 @@ class TMMeasurementSystem(nn.Module):
             self.register_buffer('mode_fields_matrix_dual', 
                 selected_fields_dual.view(2, C * H * W, N_modes_field))
         
+        # Calibration state: set to True after calibrate() is called
+        self._calibrated = False
+
         print(f"System initialized with {N_modes} guided modes")
         print(f"Grid size: {grid_params['nx']} x {grid_params['ny']}")
         print(f"Aberration models initialized: ZoomFFT and {zernike_n_modes} Zernike modes")
         print(f"Performance optimizations: Pre-flattened mode fields for fast projection")
-    
-    def enable_torch_compile(self, mode='reduce-overhead'):
-        """
-        Enable torch.compile for forward methods to fuse CUDA kernels.
-        
-        NOTE: torch.compile currently disabled due to incompatibility with complex number
-        gradients in PyTorch 2.x. The method is kept for API compatibility but does nothing.
-        
-        Main speedup (2-3x) comes from spectral initialization and pre-flattened tensors.
-        
-        Args:
-            mode: Compilation mode (ignored, kept for API compatibility)
-        
-        Note: torch.compile will be re-enabled when PyTorch fixes complex gradient issues.
-        """
-        import torch
-        
-        # torch.compile is currently disabled due to complex number gradient issues
-        # in PyTorch's inductor backend. See TORCH_COMPILE_FIX.md for details.
-        print("Note: torch.compile is currently disabled due to PyTorch complex gradient issues.")
-        print("Main speedup (2-3x) comes from spectral initialization + pre-flattened tensors.")
-        print("This is sufficient for the target 2-4x overall speedup.")
-        return
-        
-        # Original torch.compile code kept for when PyTorch fixes the issue:
-        # if not torch.cuda.is_available():
-        #     print("Warning: torch.compile is most effective on CUDA. Skipping compilation on CPU.")
-        #     return
-        # 
-        # try:
-        #     if not hasattr(torch, 'compile'):
-        #         print("Warning: torch.compile not available. Requires PyTorch 2.0+. Skipping.")
-        #         return
-        #     
-        #     self.output_modes_to_intensities = torch.compile(
-        #         self.output_modes_to_intensities,
-        #         mode=mode,
-        #         fullgraph=False
-        #     )
-        #     print("✓ torch.compile enabled.")
-        # except Exception as e:
-        #     print(f"Warning: Could not enable torch.compile: {e}")
-        #     print("Continuing without compilation.")
     
     @property
     def optimized_tm_tensor(self) -> torch.Tensor:
@@ -493,6 +453,112 @@ class TMMeasurementSystem(nn.Module):
         total_fields = total_fields.permute(4, 0, 1, 2, 3)
         return total_fields
     
+    @torch.no_grad()
+    def calibrate(self) -> None:
+        """
+        Pre-compute aberrated output mode fields in both planes using the current optimized parameters.
+
+        After calibration, ``output_modes_to_intensities`` replaces its full ZoomFFT + Zernike
+        pipeline with a single matrix multiplication per plane.  The speedup comes from linearity:
+        every operation between the mode-distribution vector and the final field is linear, so the
+        combined operator can be pre-applied once to each basis mode and cached.
+
+        The cached matrices (registered as non-learnable buffers) store the response of each mode
+        at each spatial pixel **after** all fixed aberrations have been applied:
+
+        Non-symmetric TM path (default):
+          1. ``_cal_fourier_pre``  – mode fields after (Zernike_image → FFT × mult).
+             Used for ``I_fourier`` (the Fourier-plane intensity before the Fourier-domain Zernike).
+          2. ``_cal_fourier_post`` – mode fields after (Zernike_image → FFT × mult → Zernike_fourier).
+             Returned as ``E_fourier`` when ``return_complex_field=True``.
+          3. ``_cal_image``        – mode fields after the full chain (→ IFFT ÷ mult).
+             Used for ``I_image`` and returned as ``E_image`` when ``return_complex_field=True``.
+
+        Symmetric TM path (``enforce_symmetric_tm=True``):
+          1. ``_cal_sym_fourier``  – image-plane mode fields after (Zernike_image → FFT × mult).
+             Used for ``I_fourier``.
+          2. ``_cal_sym_image``    – Fourier-plane mode fields after (Zernike_fourier → IFFT ÷ mult).
+             Used for ``I_image``.
+
+        All matrices are stored with shape ``(H*W, N_modes)`` per polarisation component so that
+        the calibrated forward simply computes::
+
+            E_flat = cal_matrix @ output_mode_dist   # (H*W, batch)
+
+        Call this method once after all parameters have been optimised.  Re-call if any output-path
+        parameter (Zernike image/Fourier, ZoomFFT out_fwd/out_inv) changes after the fact.
+
+        Note: the calibrated path is only engaged when ``use_internal_params=True`` and no explicit
+        override parameters are passed to ``output_modes_to_intensities``.
+        """
+        self._calibrated = False  # prevent stale fast-path during recomputation
+
+        H = self.grid_params['ny']
+        W = self.grid_params['nx']
+        N_modes = self.mode_fields.shape[-1]
+        mult = self.mult_factor['tran']
+
+        zoomfft_fwd = self._get_zoomfft_params_dict(self.zoomfft_out_fwd_params)
+        zoomfft_inv = self._get_zoomfft_params_dict(self.zoomfft_out_inv_params)
+        z_image   = self.zernike_image_plane
+        z_fourier = self.zernike_fourier_domain
+
+        def _modes_to_flat(mode_tensor_2HWM: torch.Tensor) -> torch.Tensor:
+            """(2, H, W, N_modes) → (N_modes, 2, H, W) batch-friendly layout."""
+            return mode_tensor_2HWM.permute(3, 0, 1, 2).contiguous()  # (N_modes, 2, H, W)
+
+        def _flatten_spatial(e: torch.Tensor) -> torch.Tensor:
+            """(N_modes, 2, H, W) per-pol → (H*W, N_modes)."""
+            # e[:, pol] shape: (N_modes, H, W) → transpose to (H*W, N_modes)
+            return e.reshape(N_modes, H * W).T.contiguous()
+
+        if self.enforce_symmetric_tm:
+            # ------------------------------------------------------------------
+            # Symmetric path: two independent linear chains
+            # Chain A: image-plane modes  →  Fourier-plane field  (for I_fourier)
+            # Chain B: Fourier-plane modes → image-plane field     (for I_image)
+            # ------------------------------------------------------------------
+            # Chain A
+            image_modes = _modes_to_flat(self.mode_fields[0])         # (N_modes, 2, H, W)
+            image_modes_ab = self.zernike_layer(image_modes, z_image)  # (N_modes, 2, H, W)
+            e_four = self.zoomfft['tran'](image_modes_ab, inverse=False, **zoomfft_fwd) * mult
+
+            # Chain B
+            fourier_modes = _modes_to_flat(self.mode_fields[1])              # (N_modes, 2, H, W)
+            fourier_modes_ab = self.zernike_layer(fourier_modes, z_fourier)  # (N_modes, 2, H, W)
+            e_imag = self.zoomfft['tran'](fourier_modes_ab, inverse=True, **zoomfft_inv) / mult
+
+            self.register_buffer('_cal_sym_fourier_x', _flatten_spatial(e_four[:, 0]))
+            self.register_buffer('_cal_sym_fourier_y', _flatten_spatial(e_four[:, 1]))
+            self.register_buffer('_cal_sym_image_x',   _flatten_spatial(e_imag[:, 0]))
+            self.register_buffer('_cal_sym_image_y',   _flatten_spatial(e_imag[:, 1]))
+
+        else:
+            # ------------------------------------------------------------------
+            # Default path: single chain
+            # mode_m  →  Zernike_image  →  FFT×mult  →  [I_fourier here]
+            #         →  Zernike_fourier  →  IFFT÷mult  →  [I_image here]
+            # ------------------------------------------------------------------
+            image_modes = _modes_to_flat(self.mode_fields[0])          # (N_modes, 2, H, W)
+            image_modes_ab = self.zernike_layer(image_modes, z_image)  # (N_modes, 2, H, W)
+
+            e_four_pre = self.zoomfft['tran'](image_modes_ab, inverse=False, **zoomfft_fwd) * mult
+            e_four_post = self.zernike_layer(e_four_pre, z_fourier)
+            e_imag = self.zoomfft['tran'](e_four_post, inverse=True, **zoomfft_inv) / mult
+
+            self.register_buffer('_cal_fourier_pre_x',  _flatten_spatial(e_four_pre[:, 0]))
+            self.register_buffer('_cal_fourier_pre_y',  _flatten_spatial(e_four_pre[:, 1]))
+            self.register_buffer('_cal_fourier_post_x', _flatten_spatial(e_four_post[:, 0]))
+            self.register_buffer('_cal_fourier_post_y', _flatten_spatial(e_four_post[:, 1]))
+            self.register_buffer('_cal_image_x',        _flatten_spatial(e_imag[:, 0]))
+            self.register_buffer('_cal_image_y',        _flatten_spatial(e_imag[:, 1]))
+
+        self._calibrated = True
+        path = "symmetric" if self.enforce_symmetric_tm else "default"
+        print(f"Calibration complete ({path} path). "
+              f"Aberrated output mode fields pre-computed for {N_modes} modes "
+              f"({H}×{W} grid). Fast matmul path enabled in output_modes_to_intensities.")
+
     def _get_zoomfft_params_dict(self, param_dict: nn.ParameterDict) -> Dict:
         """Convert nn.ParameterDict to regular dict with gamma included."""
         return {
@@ -690,7 +756,88 @@ class TMMeasurementSystem(nn.Module):
             If return_complex_field False: intensities, shape (batch, 2, H, W) where [:, 0] = image, [:, 1] = Fourier.
             If return_complex_field True: complex E, shape (batch, 2, 2, H, W) where [:, plane, pol, :, :], pol 0=x, 1=y.
         """
-        # Resolve output-path parameters only
+        H = self.grid_params['ny']
+        W = self.grid_params['nx']
+
+        # ------------------------------------------------------------------
+        # Fast calibrated path: single matrix multiplication per plane.
+        # Active when calibrate() has been called and no per-call overrides
+        # are provided (i.e. we use the exact parameters seen during calibration).
+        # ------------------------------------------------------------------
+        use_calibrated = (
+            self._calibrated
+            and use_internal_params
+            and zoomfft_params_output_forward is None
+            and zoomfft_params_output_inverse is None
+            and zernike_coeffs_image_plane is None
+            and zernike_coeffs_fourier_domain is None
+        )
+
+        if use_calibrated:
+            if self.enforce_symmetric_tm:
+                # Expand mode distribution to (2, N_modes, batch) if needed
+                if output_mode_dist.dim() == 2:
+                    output_mode_dist = output_mode_dist.unsqueeze(0).expand(2, -1, -1)
+                elif output_mode_dist.dim() == 3 and output_mode_dist.shape[0] == 1:
+                    output_mode_dist = output_mode_dist.expand(2, -1, -1)
+
+                batch_size = output_mode_dist.shape[2]
+                md_image   = output_mode_dist[0]  # (N_modes, batch) – image-plane weights
+                md_fourier = output_mode_dist[1]  # (N_modes, batch) – Fourier-plane weights
+
+                # Chain A: image-plane modes → Fourier field  (I_fourier)
+                ef_x = torch.matmul(self._cal_sym_fourier_x, md_image)   # (H*W, batch)
+                ef_y = torch.matmul(self._cal_sym_fourier_y, md_image)
+                I_fourier = (ef_x.abs()**2 + ef_y.abs()**2).T.reshape(batch_size, H, W)
+
+                # Chain B: Fourier-plane modes → image field  (I_image)
+                ei_x = torch.matmul(self._cal_sym_image_x, md_fourier)   # (H*W, batch)
+                ei_y = torch.matmul(self._cal_sym_image_y, md_fourier)
+                I_image = (ei_x.abs()**2 + ei_y.abs()**2).T.reshape(batch_size, H, W)
+
+                if return_complex_field:
+                    E_fourier_from_image = torch.stack([
+                        ef_x.T.reshape(batch_size, H, W),
+                        ef_y.T.reshape(batch_size, H, W)
+                    ], dim=1)  # (batch, 2, H, W)
+                    E_image_from_fourier = torch.stack([
+                        ei_x.T.reshape(batch_size, H, W),
+                        ei_y.T.reshape(batch_size, H, W)
+                    ], dim=1)  # (batch, 2, H, W)
+                    return torch.stack([E_image_from_fourier, E_fourier_from_image], dim=1)
+
+            else:
+                batch_size = output_mode_dist.shape[1]
+
+                # Fourier-plane field before Fourier-domain Zernike  (for I_fourier)
+                efp_x = torch.matmul(self._cal_fourier_pre_x, output_mode_dist)  # (H*W, batch)
+                efp_y = torch.matmul(self._cal_fourier_pre_y, output_mode_dist)
+                I_fourier = (efp_x.abs()**2 + efp_y.abs()**2).T.reshape(batch_size, H, W)
+
+                # Final image-plane field  (for I_image)
+                ei_x = torch.matmul(self._cal_image_x, output_mode_dist)         # (H*W, batch)
+                ei_y = torch.matmul(self._cal_image_y, output_mode_dist)
+                I_image = (ei_x.abs()**2 + ei_y.abs()**2).T.reshape(batch_size, H, W)
+
+                if return_complex_field:
+                    # E_fourier returned = field after Fourier-domain Zernike
+                    efs_x = torch.matmul(self._cal_fourier_post_x, output_mode_dist)
+                    efs_y = torch.matmul(self._cal_fourier_post_y, output_mode_dist)
+                    E_fourier = torch.stack([
+                        efs_x.T.reshape(batch_size, H, W),
+                        efs_y.T.reshape(batch_size, H, W)
+                    ], dim=1)  # (batch, 2, H, W)
+                    E_image = torch.stack([
+                        ei_x.T.reshape(batch_size, H, W),
+                        ei_y.T.reshape(batch_size, H, W)
+                    ], dim=1)  # (batch, 2, H, W)
+                    return torch.stack([E_image, E_fourier], dim=1)
+
+            return torch.stack([I_image, I_fourier], dim=1)
+
+        # ------------------------------------------------------------------
+        # Full pipeline path (used during optimisation or when overrides given)
+        # ------------------------------------------------------------------
         if use_internal_params:
             if zoomfft_params_output_forward is None:
                 zoomfft_params_output_forward = self._get_zoomfft_params_dict(self.zoomfft_out_fwd_params)
@@ -1028,10 +1175,6 @@ def optimize_tm_slm(
     optimize_aberrations: bool = True,
     test_slm_patterns: Optional[torch.Tensor] = None,
     test_intensity_targets: Optional[torch.Tensor] = None,
-    use_spectral_init: bool = True,
-    spectral_init_iters: int = 15,
-    spectral_inner_iters: int = 3,
-    enable_compile: bool = False
 ) -> Dict:
     """
     Optimize TM and Aberrations using Adam optimizer with 3 separate learning rates.
@@ -1062,25 +1205,7 @@ def optimize_tm_slm(
     Returns:
         Dict containing training history
     """
-    # --- Performance Optimization: Enable torch.compile ---
-    if enable_compile:
-        tm_system.enable_torch_compile(mode='reduce-overhead')
-    
-    # --- Spectral Initialization (if enabled) ---
-    if use_spectral_init:
-        print("\n" + "="*60)
-        print("PHASE 1: Spectral Initialization")
-        print("="*60)
-        run_spectral_initialization(
-            tm_system,
-            slm_patterns,
-            intensity_targets,
-            num_iters=spectral_init_iters,
-            num_inner_iters=spectral_inner_iters,
-            ridge_alpha=1e-4
-        )
-        print("="*60 + "\n")
-    
+
     print("\n" + "="*60)
     print("PHASE 2: Gradient-Based Optimization")
     print("="*60)
@@ -2045,6 +2170,7 @@ def main(optimization_mode: str = "4step_internal"):
         'slm': dx_o
     }
     # Initialize the system
+    optimization_mode = "4step_lifted_als"
     print("Initializing TM Measurement System...")
     tm_system = TMMeasurementSystem(
         fiber_params, grid_params, 
@@ -2053,17 +2179,20 @@ def main(optimization_mode: str = "4step_internal"):
         zoomfft_params=zoomfft_params,
         zernike_n_modes=8,
         dx=dx,
-        enforce_symmetric_tm=False,
-        theta_before_slm_init=np.pi/8
+        enforce_symmetric_tm=False if optimization_mode == "slm" else False,
+        theta_before_slm_init=0.0 if optimization_mode == "slm" else np.pi/8
     )
-
+    tm_system_rotated = torch.load("tm_system_rotated.pt", weights_only=False)
+    tm_system.real_tm_tensor = tm_system_rotated.real_tm_tensor.clone().to(
+        device=tm_system.real_tm_tensor.device,
+        dtype=tm_system.real_tm_tensor.dtype
+    )  # TODO: should be deleted after testing
     # ===== 4-step internal reference TM retrieval simulation =====
-    optimization_mode = "4step_lifted_als"
     if optimization_mode in ("4step_internal", "4step_lifted_als"):
         print("\n" + "="*60)
         print("4-step internal reference TM retrieval simulation")
         print("="*60)
-        num_4step_train = 3000
+        num_4step_train = 2200
         num_4step_test = 200
         base_slm_patterns_4step = torch.rand(
             num_4step_train + num_4step_test,
@@ -2162,7 +2291,7 @@ def main(optimization_mode: str = "4step_internal"):
         # Sample SLM measurements
         print("\nSampling SLM measurements...")
         slm_patterns, intensity_measurements = tm_system.sample_measurements_slm(
-            num_measurements=4000, use_aberrations=use_aberrations_in_target)
+            num_measurements=4500, use_aberrations=use_aberrations_in_target)
         
         # Optimize TM (and optionally aberrations)
         print("\nOptimizing transmission matrix...")
@@ -2173,7 +2302,7 @@ def main(optimization_mode: str = "4step_internal"):
             slm_patterns=slm_patterns,
             intensity_targets=intensity_measurements,
             num_epochs=100,
-            learning_rate=0.001,
+            learning_rate=0.1,
             batch_size=256,
             planes='both',
             optimize_aberrations=optimize_aberrations
