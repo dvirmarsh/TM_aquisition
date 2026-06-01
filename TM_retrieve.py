@@ -5,6 +5,7 @@ This module implements a complete system for retrieving transmission matrices (T
 from intensity measurements using optimization methods.
 """
 
+import math
 import numpy as np
 import torch
 import torch.nn as nn
@@ -2109,6 +2110,450 @@ def optimize_tm_lifted_als_4step(
         
         adam_loss_str = f"{total_phys_loss:.5f}" if epoch >= burn_in_epochs else "N/A"
         print(f"Epoch {epoch+1}/{num_epochs} {status_msg}: LS Data Loss={loss_complex_ls.item():.5f}, Adam Loss={adam_loss_str}, TM Error={tm_err:.5f}")
+
+    return history
+
+
+def optimize_tm_analytic_dual_plane(
+    tm_system: 'TMMeasurementSystem',
+    train_input_modes: torch.Tensor,
+    train_intensity_targets: torch.Tensor,
+    num_epochs: int = 100,
+    learning_rate: float = 0.1,
+    momentum: float = 0.9,
+    beta: float = 5.0,
+    epsilon: float = 1e-8,
+) -> Dict:
+    """
+    Autograd-free TM optimizer for unpolarized dual-plane intensity measurements
+    with Reweighted Amplitude Flow (RAF) dynamic weighting.
+
+    Forward model per plane p in {0=image, 1=fourier} and polarization in {x, y}:
+        Y = T Z_in,  E_{pol,p} = P_{pol,p} Y,  I_pred,p = |E_x,p|^2 + |E_y,p|^2.
+
+    Loss (per plane, standard amplitude residual):
+        L_p = 1/2 sum (sqrt(I_pred,p) - sqrt(I_meas,p))^2.
+
+    RAF weighting and residual (per pixel):
+        W_p = sqrt(I_pred,p) / (sqrt(I_pred,p) + beta sqrt(I_meas,p))
+        R_p = W_p (1 - sqrt(I_meas,p) / (sqrt(I_pred,p) + eps))
+
+    Analytic Wirtinger gradient:
+        grad_Y = sum_p w_p (P_{x,p}^H [R_p . E_{x,p}] + P_{y,p}^H [R_p . E_{y,p}])
+        grad_T = grad_Y @ Z_in^H,
+    with plane weights (1, gamma). The static balancing factor
+        gamma = L_0 / L_1,  L_p = 1/2 sum (sqrt(I_meas,p))^2
+    is computed once before the loop. Polyak momentum is applied in place.
+
+    Args:
+        tm_system: Calibrated TM measurement system providing P_{pol,p}.
+        train_input_modes: Precomputed Z_in, shape (N_modes, Batch).
+        train_intensity_targets: Dual-plane intensities, shape (Batch, 2, H, W),
+            with index 0 = image plane, index 1 = Fourier plane.
+        num_epochs: Number of full-batch iterations.
+        learning_rate: Step size for the in-place update T -= lr * velocity.
+        momentum: Polyak momentum factor.
+        beta: RAF dynamic weighting parameter.
+        epsilon: Numerical stabilization for divisions.
+
+    Returns:
+        history: dict with 'epoch_losses' (L_0 + gamma * L_1, recomputed each
+        epoch on the current iterate) and 'tm_error'.
+    """
+    device = tm_system.device
+    history: Dict[str, List[float]] = {'epoch_losses': [], 'tm_error': []}
+
+    with torch.no_grad():
+        n_modes = len(tm_system.guided_modes)
+        batch_size = train_input_modes.shape[1]
+        H = tm_system.grid_params['ny']
+        W = tm_system.grid_params['nx']
+        n_pixels = H * W
+
+        # Projection matrices for both planes (mirror of TM_experimental_pipeline
+        # _projection_mats): drive a unit mode basis through the calibrated output
+        # path once and stack into (2_pol, n_pixels, n_modes) per plane so the
+        # forward pass per plane is a single batched matmul.
+        I_modes = torch.eye(n_modes, dtype=torch.complex64, device=device)
+        P_complex = tm_system.output_modes_to_intensities(
+            I_modes, return_complex_field=True, use_internal_params=True
+        )  # (n_modes, 2_planes, 2_pol, H, W)
+
+        P_stacked: List[torch.Tensor] = []
+        P_stacked_H: List[torch.Tensor] = []
+        for p in (0, 1):
+            P_x_p = P_complex[:, p, 0].reshape(n_modes, n_pixels).T.contiguous()
+            P_y_p = P_complex[:, p, 1].reshape(n_modes, n_pixels).T.contiguous()
+            P_p = torch.stack([P_x_p, P_y_p], dim=0).contiguous()           # (2, n_pixels, n_modes)
+            P_stacked.append(P_p)
+            P_stacked_H.append(P_p.conj().transpose(-1, -2).contiguous())   # (2, n_modes, n_pixels)
+        del P_complex, I_modes
+
+        # Cache Z_in and its Hermitian transpose once for the entire batch.
+        Z_in = train_input_modes.to(device=device, dtype=torch.complex64).contiguous()
+        Z_in_H = Z_in.conj().transpose(-1, -2).contiguous()                 # (batch, n_modes)
+
+        # Cache sqrt(I_meas) per plane as (n_pixels, batch); same layout as E_stacked
+        # so all later broadcasting collapses to elementwise multiplications.
+        sqrt_I_meas: List[torch.Tensor] = []
+        targets = train_intensity_targets.to(device=device, dtype=torch.float32)
+        for p in (0, 1):
+            I_meas = targets[:, p].reshape(batch_size, n_pixels).T.contiguous()
+            sqrt_I_meas.append(torch.sqrt(I_meas.clamp(min=0.0)))
+        del targets
+
+        # Initial forward pass and static balancing factor gamma = L_0 / L_1.
+        T = tm_system.optimized_tm.detach().clone().contiguous()
+        Y = T @ Z_in
+        L_init: List[float] = []
+        for p in (0, 1):
+            E_init = torch.matmul(P_stacked[p], Y)
+            _ = torch.sum(E_init.real ** 2 + E_init.imag ** 2, dim=0)
+            L_init.append(0.5 * torch.sum(sqrt_I_meas[p] ** 2).item())
+        gamma = float(L_init[0] / max(L_init[1], epsilon))
+
+        velocity_T = torch.zeros_like(T)
+        for epoch in range(num_epochs):
+            # Step 1: Unscaled forward pass for both planes
+            Y = T @ Z_in
+            E_stacked_list = []
+            sqrt_I_pred_list = []
+
+            for p in (0, 1):
+                E_stacked = torch.matmul(P_stacked[p], Y)
+                I_pred = torch.sum(E_stacked.real ** 2 + E_stacked.imag ** 2, dim=0)
+                sqrt_I_pred = torch.sqrt(I_pred.clamp(min=0.0))
+                E_stacked_list.append(E_stacked)
+                sqrt_I_pred_list.append(sqrt_I_pred)
+
+            # Step 2: Calculate optimal scale factor 's' (weighted by gamma)
+            numerator = 0.0
+            denominator = 1e-12
+            for p in (0, 1):
+                weight_p = 1.0 if p == 0 else gamma
+                numerator += weight_p * torch.sum(sqrt_I_meas[p] * sqrt_I_pred_list[p]).item()
+                denominator += weight_p * torch.sum(sqrt_I_pred_list[p] ** 2).item()
+
+            s_val = numerator / denominator
+
+            # Step 3: Apply scale factor to TM and Y in-place
+            T.mul_(s_val)
+            Y.mul_(s_val)
+
+            # Step 4: Compute gradients using scaled cached variables
+            grad_Y = torch.zeros_like(Y)
+            epoch_loss = 0.0
+
+            for p in (0, 1):
+                weight_p = 1.0 if p == 0 else gamma
+
+                # Scale the cached forward pass variables in-place
+                E_stacked = E_stacked_list[p].mul_(s_val)
+                sqrt_I_pred = sqrt_I_pred_list[p].mul_(s_val)
+
+                # RAF dynamic weights
+                W_p = sqrt_I_pred / (sqrt_I_pred + beta * sqrt_I_meas[p] + epsilon)
+
+                # Exact Wirtinger residual (includes 0.5 factor)
+                R_p = 0.5 * (1.0 - sqrt_I_meas[p] / (sqrt_I_pred + epsilon)) * W_p 
+
+                grad_Y_p = torch.matmul(P_stacked_H[p], R_p.unsqueeze(0) * E_stacked).sum(dim=0)
+                grad_Y.add_(grad_Y_p, alpha=weight_p)
+
+                L_p_curr = 0.5 * torch.sum((sqrt_I_pred - sqrt_I_meas[p]) ** 2).item()
+                epoch_loss += weight_p * L_p_curr
+
+            # Step 5: Momentum update
+            grad_T = grad_Y @ Z_in_H
+            velocity_T.mul_(momentum).add_(grad_T)
+            T.sub_(velocity_T, alpha=learning_rate)
+
+            tm_system.optimized_tm_tensor = T
+            tm_err_val = 0.0
+            if hasattr(tm_system, 'real_tm_tensor'):
+                tm_err_val, _ = calculate_phase_aligned_frobenius_norm(
+                    tm_system.real_tm_tensor, tm_system.optimized_tm
+                )
+                tm_err_val = float(tm_err_val)
+            history['epoch_losses'].append(float(epoch_loss))
+            history['tm_error'].append(tm_err_val)
+
+            print(
+                f"[Analytic RAF dual-plane] Epoch {epoch+1}/{num_epochs}: "
+                f"Loss={epoch_loss:.5f}, TM Error={tm_err_val:.5f}, Scale={s_val:.4f}"
+            )
+
+    return history
+
+
+def optimize_tm_mse_exact_line_search_dual_plane(
+    tm_system: 'TMMeasurementSystem',
+    train_input_modes: torch.Tensor,
+    train_intensity_targets: torch.Tensor,
+    num_epochs: int = 100,
+    resync_interval: int = 10,
+    meas_scale: float = 1e-3,
+    epsilon: float = 1e-8,
+) -> Dict:
+    """
+    Autograd-free Non-Linear Conjugate Gradient optimizer for unpolarized
+    dual-plane intensity-MSE TM retrieval.
+
+    Method: Polak-Ribiere+ conjugate-gradient direction with an *exact* line
+    search. The per-plane intensity-MSE loss
+
+        L = sum_p w_p sum_pixels ( I_pred,p - I_meas,p )^2,
+        I_pred,p = |E_x,p|^2 + |E_y,p|^2,   E_pol,p = P_pol,p Y,   Y = T Z_in
+
+    is a quartic in the step length alpha along the search direction, so the
+    optimal step is obtained in closed form by rooting its cubic derivative.
+
+    Analytic Wirtinger gradient of the intensity-MSE:
+        G_E = 2 (I_pred - I_meas) . E            (per plane, per polarization)
+        grad_Y = sum_pol P_pol^H G_E
+        delta_T = grad_Y Z_in^H                  (= dL/dT*, ascent direction)
+
+    Polak-Ribiere+ momentum:
+        mu = max(0, Re Tr(delta_T^H (delta_T - delta_T_prev)) / ||delta_T_prev||^2)
+        V_T <- mu V_T + delta_T                  (descent uses T <- T - alpha V_T)
+
+    Exact line search along T(alpha) = T - alpha V_T. With
+        A = sum_pol |V_E,pol|^2,  B = -2 sum_pol Re(E_pol^* V_E,pol),
+        D = I_pred(0) - I_meas    (reused from the gradient step),
+    we have I_pred(alpha) - I_meas = A alpha^2 + B alpha + D and
+        L(alpha) = q4 alpha^4 + q3 alpha^3 + q2 alpha^2 + q1 alpha + q0,
+        q4 = sum w_p sum A^2,        q3 = sum w_p sum 2 A B,
+        q2 = sum w_p sum (B^2 + 2 A D), q1 = sum w_p sum 2 B D.
+    The stationary points solve [4 q4, 3 q3, 2 q2, q1] = 0; the loss is
+    evaluated at each real root (scalar Horner) and the global minimizer is
+    taken as the step.
+
+    Magnitude control (keeps float32 forward/line-search arithmetic safe):
+        * Measurements are pre-scaled by `meas_scale` (intensity ~ |T|^2, so this
+          just rescales the recovered TM by sqrt(meas_scale); the phase-aligned
+          Frobenius TM error and the focus ratio both fit/are invariant to the
+          recovered TM's complex scale, so reported metrics are unchanged).
+        * Each iteration T is first rescaled by the closed-form intensity-optimal
+          global factor s (c = s^2 minimizes sum_p w_p sum (c I_pred - I_meas)^2),
+          pinning the field energy to the measurement scale before the conjugate
+          direction refines its shape.
+
+    Performance notes:
+        * No-grad throughout; the forward state (Y, E) is advanced in place via
+          E <- E - alpha V_E so the full forward model T Z is only recomputed
+          every `resync_interval` epochs to limit floating-point drift.
+        * The line-search loss is reduced to 4 scalar coefficients, so root
+          evaluation needs no per-root pixel-array host transfers.
+
+    Args:
+        tm_system: Calibrated TM measurement system providing P_pol,p.
+        train_input_modes: Precomputed Z_in, shape (N_modes, Batch).
+        train_intensity_targets: Dual-plane intensities, shape (Batch, 2, H, W);
+            index 0 = image plane, index 1 = Fourier plane.
+        num_epochs: Number of full-batch NLCG iterations.
+        resync_interval: Recompute the exact forward model (and reset the CG
+            direction) every this many epochs.
+        meas_scale: Global factor applied to the intensity measurements to keep
+            float32 arithmetic in a safe dynamic range (default 1e-3). Does not
+            affect the scale-invariant TM-error / focus metrics.
+        epsilon: Numerical stabilization for divisions.
+
+    Returns:
+        history: dict with 'epoch_losses' (gamma-weighted intensity-MSE on the
+        current iterate) and 'tm_error'.
+    """
+    device = tm_system.device
+    history: Dict[str, List[float]] = {'epoch_losses': [], 'tm_error': []}
+
+    with torch.no_grad():
+        n_modes = len(tm_system.guided_modes)
+        batch_size = train_input_modes.shape[1]
+        n_pixels = tm_system.grid_params['ny'] * tm_system.grid_params['nx']
+
+        # Projection matrices for both planes, stacked over polarization into
+        # (2_pol, n_pixels, n_modes) so each plane forward pass is one batched
+        # matmul. P_complex layout: (n_modes, 2_planes, 2_pol, H, W).
+        I_modes = torch.eye(n_modes, dtype=torch.complex64, device=device)
+        P_complex = tm_system.output_modes_to_intensities(
+            I_modes, return_complex_field=True, use_internal_params=True
+        )
+        P_stacked: List[torch.Tensor] = []
+        P_stacked_H: List[torch.Tensor] = []
+        for p in (0, 1):
+            P_p = torch.stack([
+                P_complex[:, p, 0].reshape(n_modes, n_pixels).T,
+                P_complex[:, p, 1].reshape(n_modes, n_pixels).T,
+            ], dim=0).contiguous()                                       # (2, n_pixels, n_modes)
+            P_stacked.append(P_p)
+            P_stacked_H.append(P_p.conj().transpose(-1, -2).contiguous())  # (2, n_modes, n_pixels)
+        del P_complex, I_modes
+
+        Z_in = train_input_modes.to(device=device, dtype=torch.complex64).contiguous()
+        Z_in_H = Z_in.conj().transpose(-1, -2).contiguous()             # (batch, n_modes)
+
+        # Pre-scale the intensity measurements to keep float32 arithmetic in a
+        # safe dynamic range. Intensity ~ |T|^2, so this only rescales the
+        # recovered TM by sqrt(meas_scale); the scale-fitted TM-error metric and
+        # the focus ratio are invariant to that global factor.
+        targets = train_intensity_targets.to(device=device, dtype=torch.float32) * float(meas_scale)
+        I_meas = [
+            targets[:, 0].reshape(batch_size, n_pixels).T.contiguous(),  # (n_pixels, batch)
+            targets[:, 1].reshape(batch_size, n_pixels).T.contiguous(),
+        ]
+        del targets
+
+        T = tm_system.optimized_tm.detach().clone().contiguous()
+        V_T = torch.zeros_like(T)
+        delta_T_prev = torch.zeros_like(T)
+
+        # Static plane-balance gamma = L_0 / L_1 from the initial forward pass.
+        Y = T @ Z_in
+        L_init: List[float] = []
+        for p in (0, 1):
+            L_init.append(torch.sum((I_meas[p]) ** 2).item())
+        gamma = float(L_init[0] / max(L_init[1], epsilon))
+        plane_weights = (1.0, gamma)
+
+        E_stacked: List[Optional[torch.Tensor]] = [None, None]
+        for epoch in range(num_epochs):
+            # A. Drift resync: recompute the exact forward state and reset CG.
+            is_resync = (epoch % resync_interval == 0)
+            if is_resync:
+                V_T.zero_()
+                Y = T @ Z_in
+                E_stacked = [torch.matmul(P_stacked[0], Y), torch.matmul(P_stacked[1], Y)]
+
+            # A2. Intensity-optimal global rescale of T. Scaling T by s scales
+            #     I_pred by c = s^2; c* = argmin_c sum_p w_p sum (c I_pred - I_meas)^2
+            #     = sum_p w_p <I_pred, I_meas> / sum_p w_p <I_pred, I_pred>. Pin T,
+            #     Y and E to that scale (reductions in float64 for safety) so the
+            #     fields stay near the measurement scale before the CG step.
+            I_pred_list = [
+                torch.sum(E_stacked[p].real ** 2 + E_stacked[p].imag ** 2, dim=0)
+                for p in (0, 1)
+            ]
+            num_s = 0.0
+            den_s = 0.0
+            for p in (0, 1):
+                weight_p = plane_weights[p]
+                Ip = I_pred_list[p].double()
+                num_s += weight_p * float(torch.sum(Ip * I_meas[p].double()))
+                den_s += weight_p * float(torch.sum(Ip * Ip))
+            c_opt = num_s / max(den_s, epsilon)
+            s_scale = math.sqrt(c_opt) if c_opt > 0.0 else 0.0
+            if s_scale > 0.0 and s_scale != 1.0:
+                T.mul_(s_scale)
+                Y.mul_(s_scale)
+                E_stacked[0].mul_(s_scale)
+                E_stacked[1].mul_(s_scale)
+                # |s E|^2 = c |E|^2, so update the cached intensities cheaply.
+                I_pred_list[0] = I_pred_list[0] * c_opt
+                I_pred_list[1] = I_pred_list[1] * c_opt
+
+            # B. Wirtinger gradient and cached intensity residuals (D == R_p).
+            delta_T = torch.zeros_like(T)
+            epoch_loss_eval = 0.0
+            R_list: List[torch.Tensor] = []
+            for p in (0, 1):
+                weight_p = plane_weights[p]
+                R_p = I_pred_list[p] - I_meas[p]
+                R_list.append(R_p)
+                epoch_loss_eval += weight_p * torch.sum(R_p ** 2).item()
+                G_E = (2.0 * R_p).unsqueeze(0) * E_stacked[p]
+                G_Y = torch.matmul(P_stacked_H[p], G_E).sum(dim=0)
+                delta_T.add_(G_Y @ Z_in_H, alpha=weight_p)
+
+            # C. Polak-Ribiere+ momentum.
+            if epoch == 0 or is_resync:
+                mu = 0.0
+            else:
+                num = torch.sum(delta_T.conj() * (delta_T - delta_T_prev)).real
+                den = torch.sum(delta_T_prev.real ** 2 + delta_T_prev.imag ** 2)
+                mu = max(0.0, float(num) / max(float(den), epsilon))
+
+            delta_T_prev.copy_(delta_T)
+            V_T.mul_(mu).add_(delta_T)
+
+            # D. Search-direction fields.
+            V_Y = V_T @ Z_in
+            V_E = [torch.matmul(P_stacked[0], V_Y), torch.matmul(P_stacked[1], V_Y)]
+
+            # E. Exact line search: assemble the scalar quartic L(alpha).
+            # Tensors remain in float32 for maximum memory bandwidth, enabled
+            # by the stabilizing W_static weights preventing gradient explosion.
+            # The direction is normalized by its field energy s2 = ||V_E||^2, so
+            # we solve for beta = alpha * sqrt(s2) and recover alpha = beta / sqrt(s2).
+            A_list: List[torch.Tensor] = []
+            B_list: List[torch.Tensor] = []
+            s2 = 0.0
+            for p in (0, 1):
+                VEr = V_E[p].real
+                VEi = V_E[p].imag
+                A = (VEr * VEr + VEi * VEi).sum(dim=0)              # (n_pixels, batch)
+                B = -2.0 * (E_stacked[p].real * VEr + E_stacked[p].imag * VEi).sum(dim=0)
+                A_list.append(A)
+                B_list.append(B)
+                s2 += float(A.sum())
+
+            best_alpha = 0.0
+            min_loss = 0.0
+
+            if math.isfinite(s2) and s2 > 0.0:
+                s = math.sqrt(s2)
+                # Inverse-intensity-weighted quartic coefficients (float32 reductions).
+                q4 = q3 = q2 = q1 = 0.0
+                for p in (0, 1):
+                    weight_p = plane_weights[p]
+                    A_hat = A_list[p] / s2                          # A / s^2
+                    B_hat = B_list[p] / s                           # B / s
+                    D = R_list[p]
+
+                    q4 += weight_p * float(torch.sum(A_hat * A_hat))
+                    q3 += weight_p * 2.0 * float(torch.sum(A_hat * B_hat))
+                    q2 += weight_p * float(torch.sum(B_hat * B_hat + 2.0 * A_hat * D))
+                    q1 += weight_p * 2.0 * float(torch.sum(B_hat * D))
+
+                # Cast the 4 scalar coefficients to float64 for Newton-Raphson stability.
+                if q4 > 0.0 and all(math.isfinite(c) for c in (q4, q3, q2, q1)):
+                    q4_t = torch.tensor(q4, device=device, dtype=torch.float64)
+                    q3_t = torch.tensor(q3, device=device, dtype=torch.float64)
+                    q2_t = torch.tensor(q2, device=device, dtype=torch.float64)
+                    q1_t = torch.tensor(q1, device=device, dtype=torch.float64)
+
+                    # GPU-native Newton-Raphson on dL/d(beta) = 4 q4 b^3 + 3 q3 b^2 + 2 q2 b + q1.
+                    beta = torch.tensor(0.0, device=device, dtype=torch.float64)
+                    for _ in range(5):
+                        f_val = 4.0 * q4_t * beta ** 3 + 3.0 * q3_t * beta ** 2 + 2.0 * q2_t * beta + q1_t
+                        f_prime = 12.0 * q4_t * beta ** 2 + 6.0 * q3_t * beta + 2.0 * q2_t
+                        if torch.abs(f_prime) < 1e-12:
+                            break
+                        beta = beta - (f_val / f_prime)
+
+                    best_beta = float(beta.item())
+
+                    # Accept the step only if it reduces the loss (Delta L = L(beta) - L(0) < 0).
+                    loss_eval = (((q4 * best_beta + q3) * best_beta + q2) * best_beta + q1) * best_beta
+                    if loss_eval < 0.0:
+                        min_loss = loss_eval
+                        best_alpha = best_beta / s
+            print(f"Best alpha: {best_alpha}, min loss: {min_loss}")
+            # F. Zero-overhead in-place updates of T, Y and E along the line.
+            if best_alpha != 0.0:
+                T.sub_(V_T, alpha=best_alpha)
+                Y.sub_(V_Y, alpha=best_alpha)
+                E_stacked[0].sub_(V_E[0], alpha=best_alpha)
+                E_stacked[1].sub_(V_E[1], alpha=best_alpha)
+
+            # G. Metrics.
+            tm_system.optimized_tm_tensor = T
+            tm_err_val = 0.0
+            if hasattr(tm_system, 'real_tm_tensor'):
+                tm_err_val, _ = calculate_phase_aligned_frobenius_norm(
+                    tm_system.real_tm_tensor, tm_system.optimized_tm
+                )
+                tm_err_val = float(tm_err_val)
+            history['epoch_losses'].append(float(epoch_loss_eval))
+            history['tm_error'].append(tm_err_val)
 
     return history
 

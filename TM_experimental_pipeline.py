@@ -17,11 +17,15 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
+torch.backends.cuda.matmul.allow_tf32 = True
+torch.backends.cudnn.allow_tf32 = True
 
 from TM_retrieve import (
     TMMeasurementSystem,
     simulate_phase_stepped_measurements,
     extract_complex_interference_4step,
+    optimize_tm_analytic_dual_plane,
+    optimize_tm_mse_exact_line_search_dual_plane,
 )
 from metrics_losses import calculate_phase_aligned_frobenius_norm, PearsonCorrelationLoss
 from raf21_tm import RAF21Options, raf21_tm
@@ -1003,10 +1007,13 @@ def run_suite(args: argparse.Namespace) -> Dict:
     )
     with torch.no_grad():
         source_system.real_tm_tensor.copy_(loaded_tm_system.real_tm_tensor)
+    # loaded_tm_system is no longer needed after copying the GT TM.
+    del loaded_tm_system
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
     source_system.device = device
     source_system.calibrate()
-    dataset_full = generate_dataset(source_system, args.n_train, args.n_test, args.seed)
-    pbs_full = generate_pbs_dataset(source_system, torch.cat([dataset_full["train_slm"], dataset_full["test_slm"]], dim=0))
     real_tm = source_system.real_tm_tensor.detach().clone()
 
     def fresh_system() -> TMMeasurementSystem:
@@ -1025,85 +1032,18 @@ def run_suite(args: argparse.Namespace) -> Dict:
 
     def cleanup_system(sys_obj: TMMeasurementSystem) -> None:
         del sys_obj
+        _release_cuda_memory()
+
+    def _release_cuda_memory() -> None:
         gc.collect()
         if torch.cuda.is_available():
+            torch.cuda.synchronize()
             torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
 
-    # Sweep reference weights for corrected dual-plane ALS.
-    best_r_dual = None
-    best_h_dual = None
-    for rw in args.reference_weights:
-        sysd = fresh_system()
-        tracemalloc.start()
-        if device == "cuda" and torch.cuda.is_available():
-            torch.cuda.reset_peak_memory_stats()
-        t0 = time.perf_counter()
-        hd = optimize_dual_plane_corrected(
-            sysd, dataset_full, epochs, args.ridge_alpha, rw,
-            args.focus_opt_iters, args.focus_opt_lr, args.focus_center_radius, args.focus_target_plane
-        )
-        rd = run_experiment(
-            f"Exp 1: Dual-plane (w_ref={rw:.2f})",
-            sysd,
-            hd,
-            args.tm_error_threshold,
-            t0,
-            "Dual-plane (image+fourier) ALS with corrected A_ref construction.",
-            "Phase A.1 uses summed operator A_ref_p before Gram; reference-weight sweep.",
-            {"train_slm": tuple(dataset_full["train_slm"].shape), "ref_weight": rw},
-        )
-        tracemalloc.stop()
-        histories[f"exp1_w{rw:.2f}"] = hd
-        if best_r_dual is None or rd.final_tm_error < best_r_dual.final_tm_error:
-            best_r_dual, best_h_dual = rd, hd
-        cleanup_system(sysd)
-    if best_r_dual is not None:
-        best_r_dual.name = "Exp 1: Dual-plane"
-        results.append(best_r_dual)
-        histories["exp1_best"] = best_h_dual if best_h_dual is not None else {}
-
-    # Sweep reference weights for corrected PBS single-plane ALS+GD.
-    best_r_pbs = None
-    best_h_pbs = None
-    for rw in args.reference_weights:
-        sysp = fresh_system()
-        tracemalloc.start()
-        if device == "cuda" and torch.cuda.is_available():
-            torch.cuda.reset_peak_memory_stats()
-        t0 = time.perf_counter()
-        hp = optimize_pbs_single_plane_corrected(
-            sysp,
-            dataset_full,
-            {
-                "complex_x": pbs_full["complex_x"][: args.n_train],
-                "complex_y": pbs_full["complex_y"][: args.n_train],
-                "ref_x": pbs_full["ref_x"],
-                "ref_y": pbs_full["ref_y"],
-            },
-            epochs,
-            args.ridge_alpha,
-            rw,
-            args.focus_opt_iters, args.focus_opt_lr, args.focus_center_radius, args.focus_target_plane
-        )
-        rp = run_experiment(
-            f"Exp 2: PBS (w_ref={rw:.2f})",
-            sysp,
-            hp,
-            args.tm_error_threshold,
-            t0,
-            "Image-plane PBS-separated targets (W_x, W_y).",
-            "Phase A.1/A.2 solve x/y channels independently; Phase B loss uses I_x and I_y independently.",
-            {"train_slm": tuple(dataset_full["train_slm"].shape), "ref_weight": rw},
-        )
-        tracemalloc.stop()
-        histories[f"exp2_w{rw:.2f}"] = hp
-        if best_r_pbs is None or rp.final_tm_error < best_r_pbs.final_tm_error:
-            best_r_pbs, best_h_pbs = rp, hp
-        cleanup_system(sysp)
-    if best_r_pbs is not None:
-        best_r_pbs.name = "Exp 2: PBS"
-        results.append(best_r_pbs)
-        histories["exp2_best"] = best_h_pbs if best_h_pbs is not None else {}
+    # Exp 1 (corrected dual-plane ALS) and Exp 2 (corrected PBS single-plane ALS)
+    # are disabled in this suite; their implementations remain available as
+    # `optimize_dual_plane_corrected` / `optimize_pbs_single_plane_corrected`.
 
     # Experiment 3: intensity-based TM retrieval from precomputed input modes.
     src_intensity = copy.deepcopy(source_system)
@@ -1156,6 +1096,91 @@ def run_suite(args: argparse.Namespace) -> Dict:
     results.append(r_adam)
     cleanup_system(sys_adam)
     cleanup_system(src_intensity)
+    _release_cuda_memory()
+
+    # Experiment 5: Autograd-free analytic Wirtinger optimizer (dual-plane RAF).
+    # Reuses the Exp 3 dataset (same seed / sample count) instead of regenerating
+    # it, and runs before RAF2-1 so large pixel-basis allocations do not linger.
+    sys_analytic = fresh_system()
+    tracemalloc.start()
+    if device == "cuda" and torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+    t0 = time.perf_counter()
+    h_analytic = optimize_tm_analytic_dual_plane(
+        sys_analytic,
+        ds_intensity["train_input_modes"],
+        ds_intensity["train_intensity"],
+        num_epochs=epochs,
+        learning_rate=args.analytic_learning_rate,
+        momentum=args.analytic_momentum,
+        beta=args.analytic_beta,
+        epsilon=1e-8,
+    )
+    focus_gt_analytic = evaluate_gt_focus_metric(
+        sys_analytic,
+        slm_shape=(grid_params["ny"], grid_params["nx"]),
+        num_iterations=args.focus_opt_iters,
+        lr=args.focus_opt_lr,
+        center_radius=args.focus_center_radius,
+        target_plane=args.focus_target_plane,
+    )
+    h_analytic["gt_focus_metric"] = [focus_gt_analytic]
+    r_analytic = run_experiment(
+        "Exp 5: Analytic RAF Dual-Plane",
+        sys_analytic,
+        h_analytic,
+        args.tm_error_threshold,
+        t0,
+        "Dual-plane (image + Fourier) unpolarized intensity measurements, full-batch.",
+        "Autograd-free Wirtinger-gradient update on T with RAF dynamic weighting; static plane balance gamma = L_0/L_1; Polyak momentum and in-place T.sub_(velocity, alpha=lr).",
+        {"train_intensity": tuple(ds_intensity["train_intensity"].shape)},
+    )
+    tracemalloc.stop()
+    histories["exp5_analytic"] = h_analytic
+    results.append(r_analytic)
+    cleanup_system(sys_analytic)
+    _release_cuda_memory()
+
+    # Experiment 6: Autograd-free NLCG (exact line search + Polak-Ribiere+)
+    # on the dual-plane intensity-MSE loss. Reuses the Exp 3/5 intensity dataset.
+    sys_nlcg = fresh_system()
+    tracemalloc.start()
+    if device == "cuda" and torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+    t0 = time.perf_counter()
+    h_nlcg = optimize_tm_mse_exact_line_search_dual_plane(
+        sys_nlcg,
+        ds_intensity["train_input_modes"],
+        ds_intensity["train_intensity"],
+        num_epochs=epochs,
+        resync_interval=args.nlcg_resync_interval,
+        epsilon=1e-8,
+    )
+    focus_gt_nlcg = evaluate_gt_focus_metric(
+        sys_nlcg,
+        slm_shape=(grid_params["ny"], grid_params["nx"]),
+        num_iterations=args.focus_opt_iters,
+        lr=args.focus_opt_lr,
+        center_radius=args.focus_center_radius,
+        target_plane=args.focus_target_plane,
+    )
+    h_nlcg["gt_focus_metric"] = [focus_gt_nlcg]
+    r_nlcg = run_experiment(
+        "Exp 6: NLCG Exact Line Search Dual-Plane",
+        sys_nlcg,
+        h_nlcg,
+        args.tm_error_threshold,
+        t0,
+        "Dual-plane (image + Fourier) unpolarized intensity measurements, full-batch.",
+        "Autograd-free Non-Linear Conjugate Gradient on intensity-MSE: Polak-Ribiere+ conjugate direction with exact (closed-form quartic) line search; static plane balance gamma = L_0/L_1; in-place forward state with periodic resync.",
+        {"train_intensity": tuple(ds_intensity["train_intensity"].shape), "resync_interval": args.nlcg_resync_interval},
+    )
+    tracemalloc.stop()
+    histories["exp6_nlcg"] = h_nlcg
+    results.append(r_nlcg)
+    cleanup_system(sys_nlcg)
+    del ds_intensity
+    _release_cuda_memory()
 
     # Experiment 4: RAF2-1 pixel-basis benchmark from Cheng et al. (raf_21/).
     # Low-resolution parameterization: each "raf21 SLM pixel" drives a constant-phase block
@@ -1250,6 +1275,8 @@ def run_suite(args: argparse.Namespace) -> Dict:
     histories["exp4_raf21"] = h_raf
     results.append(r_raf)
     cleanup_system(raf_sys)
+    del raf_dataset
+    _release_cuda_memory()
 
     report = {
         "experimental_setup": {
@@ -1287,6 +1314,8 @@ def run_suite(args: argparse.Namespace) -> Dict:
             "Reference-weight sweep changes conditioning of TM updates; best weight is selected empirically.",
             "Intensity-only TM retrieval from precomputed input modes isolates TM optimization from SLM-path compute.",
             "RAF2-1 (Cheng et al., 2023) provides a pixel-basis benchmark: an N^2xM^2 TM is fit to single-polarization output intensities via amplitude flow with a 2/3 RAF2 -> 1/3 RAF1 schedule. To stay tractable on a 128x128 grid, the SLM is parameterized at a coarser n_pix_slm grid (replicated to the physical SLM via Kronecker product) and the camera is binned to n_pix_out; the recovered TM has shape (n_pix_out^2, n_pix_slm^2).",
+            "Exp 5 (analytic RAF dual-plane) bypasses autograd entirely: the Wirtinger gradient grad_T = (sum_p w_p P_p^H [R_p E_p]) Z_in^H is hand-implemented with stacked-polarization batched matmuls under torch.no_grad(). RAF reweighting is recomputed each iteration; the inter-plane balancing factor gamma = L_0/L_1 is fixed once from the measured amplitude energies; momentum updates run in place on T.",
+            "Exp 6 (NLCG dual-plane intensity-MSE) is also autograd-free: a Polak-Ribiere+ conjugate-gradient direction is taken on the exact intensity-MSE Wirtinger gradient delta_T = (sum_p w_p P_p^H [2 R_p E_p]) Z_in^H, and the step length is solved in closed form because the loss is quartic in alpha along the line (its cubic derivative is rooted, real roots filtered, global minimizer chosen). The forward state (Y, E) is advanced in place via E <- E - alpha V_E and only resynced every resync_interval epochs; static plane balance gamma = L_0/L_1 is fixed once at epoch 0.",
         ],
         "conclusion": recommendation(results),
         "novel_technique_breakdown": {
@@ -1304,13 +1333,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
     p.add_argument("--tm-system-path", type=str, default="tm_system_rotated.pt")
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--grid-n", type=int, default=128)
-    p.add_argument("--n-train", type=int, default=2000)
+    p.add_argument("--grid-n", type=int, default=64)
+    p.add_argument("--n-train", type=int, default=5000)
     p.add_argument("--n-test", type=int, default=200)
     p.add_argument("--n-train-intensity", type=int, default=5000)
     p.add_argument("--n-test-intensity", type=int, default=200)
     p.add_argument("--intensity-forward-batch-size", type=int, default=64)
-    p.add_argument("--epochs", type=int, default=28)
+    p.add_argument("--epochs", type=int, default=25)
     p.add_argument("--batch-size", type=int, default=512)
     p.add_argument("--learning-rate", type=float, default=1e-2)
     p.add_argument("--focus-opt-iters", type=int, default=50)
@@ -1321,7 +1350,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tm-error-threshold", type=float, default=16.0)
     p.add_argument("--reference-weights", type=float, nargs="+", default=[0.25])
     p.add_argument("--n-train-raf21", type=int, default=0, help="Number of unit-amp SLM probes for RAF2-1 (0 -> default 5 * n_pix_slm^2).")
-    p.add_argument("--raf21-iters", type=int, default=100, help="RAF2-1 gradient-descent iterations.")
+    p.add_argument("--raf21-iters", type=int, default=80, help="RAF2-1 gradient-descent iterations.")
     p.add_argument("--raf21-mu", type=float, default=3.0, help="RAF2-1 step size (matches the MATLAB default).")
     p.add_argument("--raf21-ratio", type=float, default=2.0 / 3.0, help="RAF2 -> RAF1 switch ratio.")
     p.add_argument("--raf21-beta", type=float, default=5.0)
@@ -1329,6 +1358,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--raf21-npower-iter", type=int, default=30)
     p.add_argument("--raf21-n-pix-slm", type=int, default=32, help="Low-res SLM side (must divide --grid-n; 0 -> grid_n).")
     p.add_argument("--raf21-n-pix-out", type=int, default=64, help="Low-res output side (must divide --grid-n; 0 -> grid_n).")
+    p.add_argument("--analytic-learning-rate", type=float, default=3e-7, help="Step size for Exp 5 analytic Wirtinger optimizer.")
+    p.add_argument("--analytic-momentum", type=float, default=0.6, help="Polyak momentum for Exp 5 analytic Wirtinger optimizer.")
+    p.add_argument("--analytic-beta", type=float, default=4.0, help="RAF dynamic-weighting beta for Exp 5 analytic Wirtinger optimizer.")
+    p.add_argument("--nlcg-resync-interval", type=int, default=10, help="Forward-model resync / CG-reset interval for Exp 6 NLCG optimizer.")
     p.add_argument("--report-json", type=str, default="tm_experiment_report.json")
     p.add_argument("--history-json", type=str, default="tm_experiment_histories.json")
     return p.parse_args()
