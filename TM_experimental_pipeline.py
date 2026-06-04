@@ -24,8 +24,8 @@ from TM_retrieve import (
     TMMeasurementSystem,
     simulate_phase_stepped_measurements,
     extract_complex_interference_4step,
-    optimize_tm_analytic_dual_plane,
     optimize_tm_mse_exact_line_search_dual_plane,
+    optimize_tm_pcc_exact_line_search_dual_plane,
 )
 from metrics_losses import calculate_phase_aligned_frobenius_norm, PearsonCorrelationLoss
 from raf21_tm import RAF21Options, raf21_tm
@@ -1044,8 +1044,10 @@ def run_suite(args: argparse.Namespace) -> Dict:
     # Exp 1 (corrected dual-plane ALS) and Exp 2 (corrected PBS single-plane ALS)
     # are disabled in this suite; their implementations remain available as
     # `optimize_dual_plane_corrected` / `optimize_pbs_single_plane_corrected`.
+    # Exp 3 (Adam) and Exp 5 (analytic RAF dual-plane) are likewise disabled;
+    # see `optimize_tm_from_input_modes_adam` and `optimize_tm_analytic_dual_plane`.
 
-    # Experiment 3: intensity-based TM retrieval from precomputed input modes.
+    # Shared intensity dataset for Exp 6/7 (and Exp 3/5 when re-enabled).
     src_intensity = copy.deepcopy(source_system)
     src_intensity = src_intensity.to(device)
     src_intensity.device = device
@@ -1057,92 +1059,11 @@ def run_suite(args: argparse.Namespace) -> Dict:
         args.seed,
         args.intensity_forward_batch_size,
     )
-    sys_adam = copy.deepcopy(src_intensity)
-    with torch.no_grad():
-        sys_adam.real_tm_tensor.copy_(src_intensity.real_tm_tensor.detach())
-        sys_adam.optimized_tm_tensor = sys_adam.optimized_tm_tensor.detach().clone()
-    sys_adam.calibrate()
-    tracemalloc.start()
-    if device == "cuda" and torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats()
-    t0 = time.perf_counter()
-    h_adam = optimize_tm_from_input_modes_adam(
-        sys_adam,
-        ds_intensity["train_input_modes"],
-        ds_intensity["train_intensity"],
-        epochs,
-        args.learning_rate,
-        args.batch_size,
-        args.focus_opt_iters,
-        args.focus_opt_lr,
-        args.focus_center_radius,
-        args.focus_target_plane,
-        (grid_params["ny"], grid_params["nx"]),
-        ds_intensity["test_input_modes"],
-        ds_intensity["test_intensity"],
-    )
-    r_adam = run_experiment(
-        "Exp 3: Adam",
-        sys_adam,
-        h_adam,
-        args.tm_error_threshold,
-        t0,
-        "Intensity measurements only.",
-        "Precompute input modes once; optimize TM using output-mode to intensity mapping.",
-        {"train_intensity": tuple(ds_intensity["train_intensity"].shape)},
-    )
-    tracemalloc.stop()
-    histories["exp3_adam"] = h_adam
-    results.append(r_adam)
-    cleanup_system(sys_adam)
     cleanup_system(src_intensity)
     _release_cuda_memory()
 
-    # Experiment 5: Autograd-free analytic Wirtinger optimizer (dual-plane RAF).
-    # Reuses the Exp 3 dataset (same seed / sample count) instead of regenerating
-    # it, and runs before RAF2-1 so large pixel-basis allocations do not linger.
-    sys_analytic = fresh_system()
-    tracemalloc.start()
-    if device == "cuda" and torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats()
-    t0 = time.perf_counter()
-    h_analytic = optimize_tm_analytic_dual_plane(
-        sys_analytic,
-        ds_intensity["train_input_modes"],
-        ds_intensity["train_intensity"],
-        num_epochs=epochs,
-        learning_rate=args.analytic_learning_rate,
-        momentum=args.analytic_momentum,
-        beta=args.analytic_beta,
-        epsilon=1e-8,
-    )
-    focus_gt_analytic = evaluate_gt_focus_metric(
-        sys_analytic,
-        slm_shape=(grid_params["ny"], grid_params["nx"]),
-        num_iterations=args.focus_opt_iters,
-        lr=args.focus_opt_lr,
-        center_radius=args.focus_center_radius,
-        target_plane=args.focus_target_plane,
-    )
-    h_analytic["gt_focus_metric"] = [focus_gt_analytic]
-    r_analytic = run_experiment(
-        "Exp 5: Analytic RAF Dual-Plane",
-        sys_analytic,
-        h_analytic,
-        args.tm_error_threshold,
-        t0,
-        "Dual-plane (image + Fourier) unpolarized intensity measurements, full-batch.",
-        "Autograd-free Wirtinger-gradient update on T with RAF dynamic weighting; static plane balance gamma = L_0/L_1; Polyak momentum and in-place T.sub_(velocity, alpha=lr).",
-        {"train_intensity": tuple(ds_intensity["train_intensity"].shape)},
-    )
-    tracemalloc.stop()
-    histories["exp5_analytic"] = h_analytic
-    results.append(r_analytic)
-    cleanup_system(sys_analytic)
-    _release_cuda_memory()
-
     # Experiment 6: Autograd-free NLCG (exact line search + Polak-Ribiere+)
-    # on the dual-plane intensity-MSE loss. Reuses the Exp 3/5 intensity dataset.
+    # on the dual-plane intensity-MSE loss. Reuses the shared intensity dataset.
     sys_nlcg = fresh_system()
     tracemalloc.start()
     if device == "cuda" and torch.cuda.is_available():
@@ -1179,6 +1100,47 @@ def run_suite(args: argparse.Namespace) -> Dict:
     histories["exp6_nlcg"] = h_nlcg
     results.append(r_nlcg)
     cleanup_system(sys_nlcg)
+    _release_cuda_memory()
+
+    # Experiment 7: Autograd-free NLCG with a scale-invariant Pearson-correlation
+    # (1 - PCC) loss and an exact PCC line search. Reuses the shared intensity
+    # dataset; the PCC normalization removes all global-magnitude controls.
+    sys_pcc = fresh_system()
+    tracemalloc.start()
+    if device == "cuda" and torch.cuda.is_available():
+        torch.cuda.reset_peak_memory_stats()
+    t0 = time.perf_counter()
+    h_pcc = optimize_tm_pcc_exact_line_search_dual_plane(
+        sys_pcc,
+        ds_intensity["train_input_modes"],
+        ds_intensity["train_intensity"],
+        num_epochs=epochs,
+        resync_interval=args.pcc_resync_interval,
+        epsilon=1e-12,
+    )
+    focus_gt_pcc = evaluate_gt_focus_metric(
+        sys_pcc,
+        slm_shape=(grid_params["ny"], grid_params["nx"]),
+        num_iterations=args.focus_opt_iters,
+        lr=args.focus_opt_lr,
+        center_radius=args.focus_center_radius,
+        target_plane=args.focus_target_plane,
+    )
+    h_pcc["gt_focus_metric"] = [focus_gt_pcc]
+    r_pcc = run_experiment(
+        "Exp 7: PCC Exact Line Search Dual-Plane",
+        sys_pcc,
+        h_pcc,
+        args.tm_error_threshold,
+        t0,
+        "Dual-plane (image + Fourier) unpolarized intensity measurements, full-batch.",
+        "Autograd-free Non-Linear Conjugate Gradient on the scale-invariant Pearson-correlation loss (1 - PCC): analytic Wirtinger gradient of (1 - PCC), Polak-Ribiere+ conjugate direction with an exact PCC line search (GPU grid search + analytic Newton-Raphson polish on the rational L(beta)); no global magnitude controls; in-place forward state with periodic resync.",
+        {"train_intensity": tuple(ds_intensity["train_intensity"].shape), "resync_interval": args.pcc_resync_interval},
+    )
+    tracemalloc.stop()
+    histories["exp7_pcc"] = h_pcc
+    results.append(r_pcc)
+    cleanup_system(sys_pcc)
     del ds_intensity
     _release_cuda_memory()
 
@@ -1199,7 +1161,7 @@ def run_suite(args: argparse.Namespace) -> Dict:
         n_train_raf = int(args.n_train_raf21)
     else:
         # RAF2-1 needs P >= ~5 * (SLM degrees of freedom) for stability.
-        n_train_raf = int(5 * n_pix_slm_total)
+        n_train_raf = int(4 * n_pix_slm_total)
         print(
             f"[raf21] n_train_raf21 not provided; defaulting to 5 * n_pix_slm^2 = {n_train_raf} "
             f"(n_pix_slm={n_pix_slm_raf})."
@@ -1333,10 +1295,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--device", type=str, default="auto", choices=["auto", "cpu", "cuda"])
     p.add_argument("--tm-system-path", type=str, default="tm_system_rotated.pt")
     p.add_argument("--seed", type=int, default=1)
-    p.add_argument("--grid-n", type=int, default=64)
+    p.add_argument("--grid-n", type=int, default=128)
     p.add_argument("--n-train", type=int, default=5000)
     p.add_argument("--n-test", type=int, default=200)
-    p.add_argument("--n-train-intensity", type=int, default=5000)
+    p.add_argument("--n-train-intensity", type=int, default=int(4000))
     p.add_argument("--n-test-intensity", type=int, default=200)
     p.add_argument("--intensity-forward-batch-size", type=int, default=64)
     p.add_argument("--epochs", type=int, default=25)
@@ -1357,11 +1319,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--raf21-gamma", type=float, default=0.5)
     p.add_argument("--raf21-npower-iter", type=int, default=30)
     p.add_argument("--raf21-n-pix-slm", type=int, default=32, help="Low-res SLM side (must divide --grid-n; 0 -> grid_n).")
-    p.add_argument("--raf21-n-pix-out", type=int, default=64, help="Low-res output side (must divide --grid-n; 0 -> grid_n).")
+    p.add_argument("--raf21-n-pix-out", type=int, default=128, help="Low-res output side (must divide --grid-n; 0 -> grid_n).")
     p.add_argument("--analytic-learning-rate", type=float, default=3e-7, help="Step size for Exp 5 analytic Wirtinger optimizer.")
     p.add_argument("--analytic-momentum", type=float, default=0.6, help="Polyak momentum for Exp 5 analytic Wirtinger optimizer.")
     p.add_argument("--analytic-beta", type=float, default=4.0, help="RAF dynamic-weighting beta for Exp 5 analytic Wirtinger optimizer.")
     p.add_argument("--nlcg-resync-interval", type=int, default=10, help="Forward-model resync / CG-reset interval for Exp 6 NLCG optimizer.")
+    p.add_argument("--pcc-resync-interval", type=int, default=30, help="Forward-model resync / CG-reset interval for Exp 7 PCC NLCG optimizer.")
     p.add_argument("--report-json", type=str, default="tm_experiment_report.json")
     p.add_argument("--history-json", type=str, default="tm_experiment_histories.json")
     return p.parse_args()

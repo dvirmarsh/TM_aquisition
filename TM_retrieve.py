@@ -2558,6 +2558,322 @@ def optimize_tm_mse_exact_line_search_dual_plane(
     return history
 
 
+def optimize_tm_pcc_exact_line_search_dual_plane(
+    tm_system: 'TMMeasurementSystem',
+    train_input_modes: torch.Tensor,
+    train_intensity_targets: torch.Tensor,
+    num_epochs: int = 100,
+    resync_interval: int = 10,
+    epsilon: float = 1e-12,
+) -> Dict:
+    """
+    Autograd-free Non-Linear Conjugate Gradient TM retrieval driven by the
+    scale-invariant Pearson correlation coefficient (PCC).
+
+    Unified GLOBAL-batch PCC objective per plane p in {0=image, 1=fourier}:
+        I_pred,p = |E_x,p|^2 + |E_y,p|^2,  E_pol,p = P_pol,p Y,  Y = T Z_in,
+    with both the prediction and the measurement flattened over (pixels x batch)
+    into a single 1-D vector. Let x = I_pred - mean(I_pred), y = I_meas -
+    mean(I_meas) (means taken over the whole flattened vector), and
+        N = <x, y>,  D = <x, x>,  Y_var = <y, y>  (all global scalars).
+    The loss is L = sum_p w_p (1 - N_p / sqrt(D_p * Y_var_p)).
+
+    Because the gradient, the line-search polynomials and the reported loss all
+    reduce over the same flattened (pixels x batch) vector, the line search
+    targets exactly the function the gradient descended, so Polak-Ribiere
+    conjugacy and the loss-decrease guard are both meaningful. PCC normalizes by
+    variance, so no global amplitude / measurement-scale controls are needed.
+
+    Analytic Wirtinger gradient of (1 - PCC):
+        R = (N x - D y) / (D sqrt(D Y_var))   (zero-mean over the flat vector,
+            so reshaping straight back to (pixels, batch) is exact),
+        G_E = 2 R . E,  grad_Y = sum_pol P_pol^H G_E,  delta_T = grad_Y Z_in^H.
+
+    Exact line search along T(alpha) = T - alpha V_T (beta = alpha sqrt(s2)):
+        x(beta) = x + beta B_hat + beta^2 A_hat with A_hat,B_hat the globally
+        zero-meaned field-energy / cross terms; N(beta) is quadratic and D(beta)
+        quartic in beta, so L(beta) is an explicit rational function minimized by
+        a GPU grid search bracket followed by analytic Newton-Raphson polish on
+        L'(beta), L''(beta).
+
+    Args:
+        tm_system: Calibrated TM measurement system providing P_pol,p.
+        train_input_modes: Precomputed Z_in, shape (N_modes, Batch).
+        train_intensity_targets: Dual-plane intensities, shape (Batch, 2, H, W);
+            index 0 = image plane, index 1 = Fourier plane.
+        num_epochs: Number of full-batch NLCG iterations.
+        resync_interval: Recompute the exact forward model (and reset the CG
+            direction) every this many epochs to bound floating-point drift.
+        epsilon: Numerical stabilization for divisions / clamps.
+
+    Returns:
+        history: dict with 'epoch_losses' (global 1 - PCC summed over planes,
+        bounded to roughly [0, 2]) and 'tm_error'.
+    """
+    device = tm_system.device
+    history: Dict[str, List[float]] = {'epoch_losses': [], 'tm_error': []}
+
+    with torch.no_grad():
+        n_modes = len(tm_system.guided_modes)
+        batch_size = train_input_modes.shape[1]
+        n_pixels = tm_system.grid_params['ny'] * tm_system.grid_params['nx']
+
+        # 1. Precompute Projection Matrices
+        I_modes = torch.eye(n_modes, dtype=torch.complex64, device=device)
+        P_complex = tm_system.output_modes_to_intensities(
+            I_modes, return_complex_field=True, use_internal_params=True
+        )
+        P_stacked: List[torch.Tensor] = []
+        P_stacked_H: List[torch.Tensor] = []
+        for p in (0, 1):
+            P_p = torch.stack([
+                P_complex[:, p, 0].reshape(n_modes, n_pixels).T,
+                P_complex[:, p, 1].reshape(n_modes, n_pixels).T,
+            ], dim=0).contiguous()
+            P_stacked.append(P_p)
+            P_stacked_H.append(P_p.conj().transpose(-1, -2).contiguous())
+        del P_complex, I_modes
+
+        Z_in = train_input_modes.to(device=device, dtype=torch.complex64).contiguous()
+        Z_in_H = Z_in.conj().transpose(-1, -2).contiguous()
+
+        # 2. Precompute GLOBAL Target Zero-Mean Vectors (y_p), flattened over
+        #    (pixels x batch) into a single 1-D vector so the PCC is computed
+        #    over the whole batch at once.
+        targets = train_intensity_targets.to(device=device, dtype=torch.float32)
+        y_list: List[torch.Tensor] = []
+        Y_var_list: List[float] = []
+        
+        for p in (0, 1):
+            I_meas = targets[:, p].reshape(batch_size, n_pixels).T.reshape(-1).contiguous()
+            y_p = I_meas - I_meas.mean()
+            y_list.append(y_p)
+            Y_var_list.append(float(torch.sum(y_p ** 2).clamp(min=epsilon)))
+        del targets
+
+        T = tm_system.optimized_tm.detach().clone().contiguous()
+        V_T = torch.zeros_like(T)
+        delta_T_prev = torch.zeros_like(T)
+        
+        # PCC naturally bounds to [0, 1]. Static weighting gamma=1.0 balances perfectly.
+        plane_weights = (1.0, 1.0)
+        E_stacked: List[Optional[torch.Tensor]] = [None, None]
+
+        # Line-search grid is identical every epoch (fixed bracket), so build the
+        # beta samples and their powers once instead of re-allocating per epoch.
+        grid_res = 400
+        lower_bound = 1e4
+        upper_bound = 3e7
+        ls_b1 = torch.linspace(lower_bound, upper_bound, grid_res, device=device, dtype=torch.float64)
+        ls_b2 = ls_b1 * ls_b1
+        ls_b3 = ls_b2 * ls_b1
+        ls_b4 = ls_b2 * ls_b2
+
+        for epoch in range(num_epochs):
+            # A. Drift Resync
+            is_resync = (epoch % resync_interval == 0)
+            if epoch == 0 or is_resync:
+                V_T.zero_()
+                Y = T @ Z_in
+                E_stacked = [torch.matmul(P_stacked[0], Y), torch.matmul(P_stacked[1], Y)]
+
+            # B. Analytic PCC Gradient (1 - PCC)
+            delta_T = torch.zeros_like(T)
+            epoch_loss_eval = 0.0
+            x_list: List[torch.Tensor] = []
+            # N(0) = <x,y> and D(0) = <x,x> are the beta=0 line-search coefficients
+            # (n0, d0); cache them here so the line search never recomputes them.
+            N_cache = [0.0, 0.0]
+            D_cache = [0.0, 0.0]
+            
+            for p in (0, 1):
+                weight_p = plane_weights[p]
+                # I_pred flattened over (pixels x batch) to match the global y_p.
+                I_pred = torch.sum(
+                    E_stacked[p].real ** 2 + E_stacked[p].imag ** 2, dim=0
+                ).reshape(-1)
+                
+                x_p = I_pred - I_pred.mean()           # global zero-mean (scalar mean)
+                x_list.append(x_p)
+                
+                # Batched reduction -> single host sync for both PCC scalars
+                # (torch.dot is a fused BLAS reduce, no n-length temporaries).
+                nd = torch.stack([torch.dot(x_p, y_list[p]), torch.dot(x_p, x_p)]).tolist()
+                nv = nd[0]
+                dv = nd[1] if nd[1] > epsilon else epsilon
+                N_cache[p] = nv
+                D_cache[p] = dv
+                
+                # Loss evaluation: 1.0 - PCC (single global scalar per plane)
+                epoch_loss_eval += weight_p * (1.0 - nv / math.sqrt(dv * Y_var_list[p]))
+                
+                # Exact analytic Wirtinger residual for (1 - PCC). It is zero-mean
+                # over the flat vector (sum(x)=sum(y)=0), so reshaping straight back
+                # to (n_pixels, batch) reproduces dL/dI_pred exactly. Scalar factors
+                # are folded on the host to avoid extra device-scalar tensors.
+                inv = 1.0 / (dv * math.sqrt(dv * Y_var_list[p]))
+                R_p = ((nv * inv) * x_p - (dv * inv) * y_list[p]).reshape(n_pixels, batch_size)
+                
+                G_E = (2.0 * R_p).unsqueeze(0) * E_stacked[p]
+                G_Y = torch.matmul(P_stacked_H[p], G_E).sum(dim=0)
+                delta_T.add_(G_Y @ Z_in_H, alpha=weight_p)
+
+            # C. Polak-Ribiere+ Momentum
+            if epoch == 0 or is_resync:
+                mu = 0.0
+            else:
+                num = torch.sum(delta_T.conj() * (delta_T - delta_T_prev)).real
+                den = torch.sum(delta_T_prev.real ** 2 + delta_T_prev.imag ** 2)
+                mu = max(0.0, float(num) / max(float(den), epsilon))
+                
+            delta_T_prev.copy_(delta_T)
+            V_T.mul_(mu).add_(delta_T)
+
+            # D. Search-direction Fields
+            V_Y = V_T @ Z_in
+            V_E = [torch.matmul(P_stacked[0], V_Y), torch.matmul(P_stacked[1], V_Y)]
+
+            # E. Exact PCC Line Search
+            # x(beta) = x + beta*B_hat + beta^2*A_hat with A_hat=(A-mean)/s2,
+            # B_hat=(B-mean)/s. We keep the centered A_c,B_c (needed so x(beta)
+            # stays zero-mean and to avoid cancellation), but fold the 1/s, 1/s2
+            # normalization into host scalars *after* the reductions instead of
+            # materializing A_hat/B_hat arrays.
+            s2 = 0.0
+            Ac_list, Bc_list = [], []
+            for p in (0, 1):
+                VEr, VEi = V_E[p].real, V_E[p].imag
+                # Flatten the quadratic / linear field terms over (pixels x batch)
+                # so the line-search reductions align with the global PCC scalars.
+                A = (VEr * VEr + VEi * VEi).sum(dim=0).reshape(-1)
+                B = -2.0 * (E_stacked[p].real * VEr + E_stacked[p].imag * VEi).sum(dim=0).reshape(-1)
+                
+                # Accumulate the (un-centered) direction energy before zero-meaning.
+                s2 += float(A.sum())
+                Ac_list.append(A - A.mean())
+                Bc_list.append(B - B.mean())
+
+            best_alpha = 0.0
+            min_loss_eval = 0.0
+            
+            if math.isfinite(s2) and s2 > epsilon:
+                s = math.sqrt(s2)
+                inv_s2 = 1.0 / s2
+                inv_s = 1.0 / s
+                n2, n1, n0 = [0.0]*2, [0.0]*2, [0.0]*2
+                d4, d3, d2, d1, d0 = [0.0]*2, [0.0]*2, [0.0]*2, [0.0]*2, [0.0]*2
+                
+                for p in (0, 1):
+                    A_c = Ac_list[p]
+                    B_c = Bc_list[p]
+                    x_p = x_list[p]
+                    y_p = y_list[p]
+                    
+                    # All seven pairwise reductions in one batched host transfer.
+                    stats = torch.stack([
+                        torch.dot(A_c, y_p),   # 0
+                        torch.dot(B_c, y_p),   # 1
+                        torch.dot(A_c, A_c),   # 2
+                        torch.dot(A_c, B_c),   # 3
+                        torch.dot(B_c, B_c),   # 4
+                        torch.dot(x_p, A_c),   # 5
+                        torch.dot(x_p, B_c),   # 6
+                    ]).tolist()
+                    
+                    # N(beta) coefficients (n0 = <x,y>, d0 = <x,x> reused from step B).
+                    n2[p] = stats[0] * inv_s2
+                    n1[p] = stats[1] * inv_s
+                    n0[p] = N_cache[p]
+                    
+                    # D(beta) coefficients
+                    d4[p] = stats[2] * inv_s2 * inv_s2
+                    d3[p] = 2.0 * stats[3] * inv_s2 * inv_s
+                    d2[p] = stats[4] * inv_s * inv_s + 2.0 * stats[5] * inv_s2
+                    d1[p] = 2.0 * stats[6] * inv_s
+                    d0[p] = D_cache[p]
+
+                # 1. Fast GPU Grid Search to find global minimum bracket
+                # (beta samples / powers precomputed once outside the epoch loop).
+                L_betas = torch.zeros(grid_res, device=device, dtype=torch.float64)
+                for p in (0, 1):
+                    Np = n2[p]*ls_b2 + n1[p]*ls_b1 + n0[p]
+                    Dp = d4[p]*ls_b4 + d3[p]*ls_b3 + d2[p]*ls_b2 + d1[p]*ls_b1 + d0[p]
+                    # Minimize L = 1 - PCC
+                    L_betas += plane_weights[p] * (1.0 - Np / torch.sqrt(Dp.clamp(min=epsilon) * Y_var_list[p]))
+                
+                best_idx = torch.argmin(L_betas)
+                beta_opt = float(ls_b1[best_idx])   # single sync; polish stays on host
+
+                # 2. Analytic Newton-Raphson Polish
+                for _ in range(1):
+                    L_p1, L_p2 = 0.0, 0.0
+                    for p in (0, 1):
+                        b = beta_opt
+                        Np = n2[p]*b**2 + n1[p]*b + n0[p]
+                        Np_p1 = 2.0*n2[p]*b + n1[p]
+                        Np_p2 = 2.0*n2[p]
+
+                        Dp = d4[p]*b**4 + d3[p]*b**3 + d2[p]*b**2 + d1[p]*b + d0[p]
+                        Dp_p1 = 4.0*d4[p]*b**3 + 3.0*d3[p]*b**2 + 2.0*d2[p]*b + d1[p]
+                        Dp_p2 = 12.0*d4[p]*b**2 + 6.0*d3[p]*b + 2.0*d2[p]
+
+                        # P' = U / (V * sqrt(Y_var))
+                        U = 2.0*Np_p1*Dp - Np*Dp_p1
+                        U_p1 = 2.0*Np_p2*Dp + Np_p1*Dp_p1 - Np*Dp_p2
+                        
+                        V = 2.0 * Dp * math.sqrt(max(Dp, epsilon))
+                        V_p1 = 3.0 * math.sqrt(max(Dp, epsilon)) * Dp_p1
+
+                        P_p1 = U / (V * math.sqrt(Y_var_list[p]))
+                        P_p2 = (U_p1*V - U*V_p1) / (V**2 * math.sqrt(Y_var_list[p]))
+
+                        # Loss is (1 - P), so derivatives invert sign
+                        L_p1 -= plane_weights[p] * P_p1
+                        L_p2 -= plane_weights[p] * P_p2
+                    
+                    if abs(L_p2) > 1e-12:
+                        beta_opt -= (L_p1 / L_p2)
+
+                best_beta = beta_opt
+                if best_beta == lower_bound or best_beta == upper_bound:
+                    print(f"Best beta={best_beta} is at the boundary of the grid search. Please increase the grid search range.")
+                # 3. Validate step actually reduced the loss
+                loss_eval = 0.0
+                for p in (0, 1):
+                    Np = n2[p]*best_beta**2 + n1[p]*best_beta + n0[p]
+                    Dp = d4[p]*best_beta**4 + d3[p]*best_beta**3 + d2[p]*best_beta**2 + d1[p]*best_beta + d0[p]
+                    loss_eval += plane_weights[p] * (1.0 - Np / math.sqrt(max(Dp, epsilon) * Y_var_list[p]))
+                
+                # Note: epoch_loss_eval is the absolute loss at beta=0
+                min_loss_eval = loss_eval - epoch_loss_eval 
+                
+                if min_loss_eval < 0.0 and best_beta > 0.0:
+                    best_alpha = best_beta / s
+
+            # F. Iterative Update
+            if best_alpha > 0.0:
+                T.sub_(V_T, alpha=best_alpha)
+                Y.sub_(V_Y, alpha=best_alpha)
+                E_stacked[0].sub_(V_E[0], alpha=best_alpha)
+                E_stacked[1].sub_(V_E[1], alpha=best_alpha)
+
+            # G. Metrics
+            tm_system.optimized_tm_tensor = T
+            tm_err_val = 0.0
+            if hasattr(tm_system, 'real_tm_tensor'):
+                tm_err_val, _ = calculate_phase_aligned_frobenius_norm(
+                    tm_system.real_tm_tensor, tm_system.optimized_tm
+                )
+                tm_err_val = float(tm_err_val)
+                
+            history['epoch_losses'].append(float(epoch_loss_eval))
+            history['tm_error'].append(tm_err_val)
+            
+            print(f"Epoch {epoch}: Alpha = {best_alpha:.4e} | Loss (1-PCC) = {epoch_loss_eval:.5f} | Delta = {min_loss_eval:.5f}")
+
+    return history
+
+
 def main(optimization_mode: str = "4step_internal"):
     """
     Example usage of the TM retrieval system.
