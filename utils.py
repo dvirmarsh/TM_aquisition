@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 import os
 import hashlib
 from typing import Dict, Tuple, Optional
@@ -10,6 +9,153 @@ from tqdm import tqdm
 from mode_solver import find_guided_modes, calculate_wave_distribution
 import h5py
 from sklearn.model_selection import train_test_split
+
+def sample_tm_perturbed_mmf(
+    N_modes: int,
+    loss_parameter: float,
+    time_reversal_symmetry_broken: bool = False,
+    noise_level: Optional[float] = None,
+    singular_value_method: str = "scaling"
+) -> np.ndarray:
+    """
+    Sample a transmission matrix of a perturbed multi-mode fiber.
+    
+    This function generates a complex-valued transmission matrix that statistically
+    resembles those of real perturbed MMFs, incorporating mode coupling, loss,
+    and appropriate random matrix ensembles.
+    
+    Parameters
+    ----------
+    N_modes : int
+        Number of input/output modes. Determines the dimension of the square TM (N_modes x N_modes).
+    loss_parameter : float
+        Value between 0 and 1 controlling average transmission efficiency and singular value spread.
+        Higher values (closer to 1) imply less loss, lower values imply more loss.
+    time_reversal_symmetry_broken : bool
+        If True, uses Gaussian Unitary Ensemble (GUE) for complex random matrices.
+        If False, uses Gaussian Orthogonal Ensemble (GOE) for Hermitian matrices.
+    noise_level : float, optional
+        Standard deviation of complex Gaussian noise to add to the final TM.
+        If None, no noise is added.
+    singular_value_method : str, optional
+        Method for generating modified singular values:
+        - "scaling": Simple scaling of original singular values
+        - "distribution": Distribution-based approach for strong coupling regime
+        Default is "scaling".
+    
+    Returns
+    -------
+    np.ndarray
+        Complex-valued transmission matrix of size (N_modes x N_modes).
+    
+    Raises
+    ------
+    ValueError
+        If parameters are invalid (e.g., N_modes <= 0, loss_parameter not in [0,1]).
+    
+    Notes
+    -----
+    The algorithm follows these steps:
+    1. Generate base random matrix according to time-reversal symmetry
+    2. Perform SVD to get unitary matrices and singular values
+    3. Modify singular values to incorporate loss and MDL
+    4. Reconstruct TM using modified singular values
+    5. Optionally add noise
+    
+    References
+    ----------
+    [1] M. Plöschner, T. Tyc, and T. Čižmár, "Seeing through chaos in multimode fibres",
+        Nature Photonics 9, 529-535 (2015).
+    [2] H. Cao and J. Wiersig, "Dielectric microcavities: Model systems for wave chaos
+        and non-Hermitian physics", Reviews of Modern Physics 87, 61 (2015).
+    [3] M. L. Mehta, "Random Matrices", Academic Press (2004).
+    [4] A. P. Mosk, A. Lagendijk, G. Lerosey, and M. Fink, "Controlling waves in space
+        and time for imaging and focusing in complex media", Nature Photonics 6, 283-292 (2012).
+    [5] S. Rotter and S. Gigan, "Light fields in complex media: Mesoscopic scattering
+        meets wave control", Reviews of Modern Physics 89, 015005 (2017).
+    [6] C. W. J. Beenakker, "Random-matrix theory of quantum transport",
+        Reviews of Modern Physics 69, 731 (1997).
+    """
+    
+    # Input validation
+    if N_modes <= 0:
+        raise ValueError("N_modes must be a positive integer")
+    
+    if not 0 <= loss_parameter <= 1:
+        raise ValueError("loss_parameter must be between 0 and 1")
+    
+    if singular_value_method not in ["scaling", "distribution"]:
+        raise ValueError("singular_value_method must be 'scaling' or 'distribution'")
+    
+    if noise_level is not None and noise_level < 0:
+        raise ValueError("noise_level must be non-negative")
+    
+    # Step 1: Determine matrix dimensions
+    N = N_modes
+    
+    # Step 2: Generate base random matrix (A)
+    if time_reversal_symmetry_broken:
+        # Gaussian Unitary Ensemble (GUE) - complex random matrix
+        # Each element drawn from standard complex Gaussian distribution
+        A = (np.random.normal(0, 1/np.sqrt(2), (N, N)) + 
+             1j * np.random.normal(0, 1/np.sqrt(2), (N, N)))
+    else:
+        # Gaussian Orthogonal Ensemble (GOE) - real symmetric matrix
+        # Generate real Gaussian matrix and make it symmetric
+        A_real = np.random.normal(0, 1, (N, N))
+        A = (A_real + A_real.T) / 2  # Make symmetric
+        # For optical TMs, we typically need complex values even with time-reversal symmetry
+        # Add small imaginary component for generality
+        imag_part = 1j*np.random.normal(0, 0.1, (N, N))
+        imag_part = 1/2*(imag_part + imag_part.T)
+        A = A + imag_part
+    
+    # Step 3: Perform Singular Value Decomposition (SVD)
+    U, Sigma_diag_A, V_dagger = np.linalg.svd(A, full_matrices=False)
+    # V_dagger = V_dagger.conj().T  # Convert to V_dagger format
+    
+    # Step 4: Generate modified singular values to incorporate loss and MDL
+    if singular_value_method == "scaling":
+        # Option A: Simple scaling
+        max_sigma = np.max(Sigma_diag_A)
+        if max_sigma > 0:
+            Sigma_diag_TM = (Sigma_diag_A / max_sigma) * loss_parameter
+        else:
+            Sigma_diag_TM = np.zeros_like(Sigma_diag_A)
+    
+    elif singular_value_method == "distribution":
+        # Option B: Distribution-based approach for strong coupling regime
+        # Generate singular values following a distribution characteristic of MMFs
+        # Use a skewed distribution towards lower values to represent loss
+        
+        # Generate random values from uniform distribution
+        uniform_vals = np.random.uniform(0, 1, N)
+        
+        # Transform to follow a distribution that favors lower values (more loss)
+        # Using a power law transformation: sigma = uniform_val^power * loss_parameter
+        power = 2.0  # Adjustable parameter - higher values create more skew towards low values
+        Sigma_diag_TM = (uniform_vals ** power) * loss_parameter
+        
+        # Ensure values are in [0, 1]
+        Sigma_diag_TM = np.clip(Sigma_diag_TM, 0, 1)
+    
+    # Step 5: Reconstruct the sampled TM
+    # Create diagonal matrix from singular values
+    Sigma_matrix = np.diag(Sigma_diag_TM)
+    
+    # TM_sampled = U * Sigma_diag_TM * V_dagger
+    TM_sampled = U @ Sigma_matrix @ V_dagger
+    
+    # Step 6: Add noise (optional)
+    if noise_level is not None and noise_level > 0:
+        # Add complex Gaussian noise
+        noise_real = np.random.normal(0, noise_level/np.sqrt(2), TM_sampled.shape)
+        noise_imag = np.random.normal(0, noise_level/np.sqrt(2), TM_sampled.shape)
+        noise_matrix = noise_real + 1j * noise_imag
+        TM_sampled = TM_sampled + noise_matrix
+    
+    return TM_sampled
+
 
 # --- 1. Define the ZoomFFT Class ---
 class ZoomFFT2D_Optimizable(nn.Module):
@@ -325,22 +471,32 @@ def calculate_mode_fields(
     return mode_fields.to(device)
 
 
-def get_mode_fields_filename(fiber_params: Dict, grid_params: Dict) -> str:
+def get_mode_fields_filename(
+    fiber_params: Dict,
+    grid_params: Dict,
+    cache_dir: Optional[str] = None,
+) -> str:
     """
     Generate a unique filename for mode_fields based on fiber and grid parameters.
-    
+
     Args:
         fiber_params: Dictionary containing fiber parameters
         grid_params: Dictionary containing grid parameters
-    
+        cache_dir: Directory to place the cache file. Default (None) writes
+            ``mode_fields_<hash>.pt`` in the current working directory, matching
+            the paper scripts.
+
     Returns:
         str: Filename for the mode_fields cache
     """
     # Create a hash of the parameters to ensure uniqueness
     param_string = f"{fiber_params['a']}_{fiber_params['n1']}_{fiber_params['n0']}_{fiber_params['wavelength']}_{grid_params['x_range']}_{grid_params['y_range']}_{grid_params['nx']}_{grid_params['ny']}"
     param_hash = hashlib.md5(param_string.encode()).hexdigest()[:8]
-    
-    return f"mode_fields_{param_hash}.pt"
+    name = f"mode_fields_{param_hash}.pt"
+    if cache_dir is None:
+        return name
+    os.makedirs(cache_dir, exist_ok=True)
+    return os.path.join(cache_dir, name)
 
 
 def load_or_calculate_mode_fields(
@@ -353,6 +509,7 @@ def load_or_calculate_mode_fields(
     mult_factor: float,
     image_plane_only: bool = True,  # TODO: remove this
     N_pad: int = 128,  # TODO: remove this
+    cache_dir: Optional[str] = None,
 ) -> torch.Tensor:
     """
     Load mode_fields from file if it exists, otherwise calculate and save them.
@@ -373,7 +530,7 @@ def load_or_calculate_mode_fields(
             - If image_plane_only=False: (2, 2, H, W, N_modes) [planes: image/fourier, components: E_x/E_y]
             - If image_plane_only=True: (1, 2, H, W, N_modes) [only image plane]
     """
-    filename = get_mode_fields_filename(fiber_params, grid_params)
+    filename = get_mode_fields_filename(fiber_params, grid_params, cache_dir=cache_dir)
     
     if os.path.exists(filename):
         print(f"Loading mode_fields from {filename}...")
@@ -425,243 +582,13 @@ def load_or_calculate_mode_fields(
     return mode_fields
 
 
-def clear_mode_fields_cache(fiber_params: Dict, grid_params: Dict):
-    """
-    Clear the cached mode_fields file if it exists.
-    
-    Args:
-        fiber_params: Dictionary containing fiber parameters
-        grid_params: Dictionary containing grid parameters
-    """
-    filename = get_mode_fields_filename(fiber_params, grid_params)
-    if os.path.exists(filename):
-        try:
-            os.remove(filename)
-            print(f"Cleared mode_fields cache: {filename}")
-        except Exception as e:
-            print(f"Error clearing cache {filename}: {e}")
-    else:
-        print(f"No cache file found: {filename}")
 
 
-def mode_fields_cache_exists(fiber_params: Dict, grid_params: Dict) -> bool:
-    """
-    Check if the mode_fields cache file exists.
-    
-    Args:
-        fiber_params: Dictionary containing fiber parameters
-        grid_params: Dictionary containing grid parameters
-    
-    Returns:
-        bool: True if cache exists, False otherwise
-    """
-    filename = get_mode_fields_filename(fiber_params, grid_params)
-    return os.path.exists(filename)
 
 
-# --- Plotting Functions ---
-
-def plot_results(
-    evaluation_results: Dict,
-    sample_input_fn,
-    calculate_intensity_fn
-):
-    """
-    Plot optimization results and evaluation metrics.
-    
-    Args:
-        evaluation_results: Results from evaluate_reconstruction()
-        sample_input_fn: Function to sample inputs:
-            - (batch_size) -> (batch_size, H, W) SLM patterns
-        calculate_intensity_fn: Function to calculate intensity:
-            - (slm_patterns, use_real_tm) -> intensity
-    """
-    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    
-    # Plot singular values comparison
-    axes[0, 0].plot(evaluation_results['real_singular_values'], 'b-', label='Real TM', linewidth=2)
-    axes[0, 0].plot(evaluation_results['optimized_singular_values'], 'r--', label='Optimized TM', linewidth=2)
-    axes[0, 0].set_xlabel('Singular Value Index')
-    axes[0, 0].set_ylabel('Singular Value')
-    axes[0, 0].set_title('Singular Values Comparison')
-    axes[0, 0].legend()
-    axes[0, 0].grid(True, alpha=0.3)
-    
-    # Plot TM error
-    tm_error_aligned_norm = float(evaluation_results['tm_frobenius_error_aligned_normalized'])
-    intensity_error_norm = float(evaluation_results['intensity_mean_error_normalized'])
-    
-    axes[0, 1].bar(['TM Error\n(Phase-Aligned)', 'Intensity Error'], 
-                  [tm_error_aligned_norm, intensity_error_norm])
-    axes[0, 1].set_ylabel('Normalized Error')
-    axes[0, 1].set_title('Reconstruction Errors')
-    axes[0, 1].grid(True, alpha=0.3)
-    
-    # Plot example intensity comparison (image plane only)
-    test_inputs = sample_input_fn(1)
-    real_intensity = calculate_intensity_fn(test_inputs, use_real_tm=True)
-    predicted_intensity = calculate_intensity_fn(test_inputs, use_real_tm=False)
-    
-    # Select image plane (index 0) for visualization
-    im1 = axes[1, 0].imshow(real_intensity[0, 0].cpu().numpy(), cmap='viridis')
-    axes[1, 0].set_title('Real Intensity (Image Plane)')
-    plt.colorbar(im1, ax=axes[1, 0])
-    
-    im2 = axes[1, 1].imshow(predicted_intensity[0, 0].detach().cpu().numpy(), cmap='viridis')
-    axes[1, 1].set_title('Predicted Intensity (Image Plane)')
-    plt.colorbar(im2, ax=axes[1, 1])
-    
-    plt.tight_layout()
-    plt.show()
 
 
-def plot_training_intensity_example(
-    mode_distributions: torch.Tensor,
-    intensity_targets: torch.Tensor,
-    calculate_intensity_fn,
-    example_idx: Optional[int] = None,
-    plane: str = 'image'
-):
-    """
-    Plot an example intensity comparison from the training set.
-    
-    Args:
-        mode_distributions: Tensor of shape (N_modes, num_measurements)
-        intensity_targets: Tensor of shape (num_measurements, 2, H, W)
-        calculate_intensity_fn: Function to calculate intensity (mode_dist, use_real_tm) -> intensity
-        example_idx: Optional index of the training sample to visualize
-        plane: 'image' or 'fourier' plane to visualize
-    """
-    if mode_distributions is None or intensity_targets is None:
-        print("Training data not provided; skipping training intensity plot.")
-        return
-    num_measurements = mode_distributions.shape[1]
-    if num_measurements == 0:
-        print("Training set is empty; skipping training intensity plot.")
-        return
-    plane_idx = 0 if plane.lower() == 'image' else 1
-    if example_idx is None:
-        example_idx = np.random.randint(0, num_measurements)
-    example_idx = int(np.clip(example_idx, 0, num_measurements - 1))
-    with torch.no_grad():
-        mode_sample = mode_distributions[:, example_idx:example_idx + 1]
-        predicted_intensity = calculate_intensity_fn(mode_sample, use_real_tm=False)[0, plane_idx]
-    target_intensity = intensity_targets[example_idx, plane_idx]
-    
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    im1 = axes[0].imshow(target_intensity.detach().cpu().numpy(), cmap='viridis')
-    axes[0].set_title(f'Training GT Intensity ({plane.capitalize()} plane)')
-    plt.colorbar(im1, ax=axes[0])
-    
-    im2 = axes[1].imshow(predicted_intensity.detach().cpu().numpy(), cmap='viridis')
-    axes[1].set_title(f'Training Pred Intensity ({plane.capitalize()} plane)')
-    plt.colorbar(im2, ax=axes[1])
-    
-    fig.suptitle(f'Training Example #{example_idx}')
-    plt.tight_layout()
-    plt.show()
 
-
-def plot_training_history(history: Dict):
-    """
-    Plot training history showing losses as a function of epoch.
-    
-    Args:
-        history: Training history from optimize_tm()
-    """
-    mse_losses = history.get('mse_losses') or []
-    tm_frobenius_error_aligned = history.get('tm_frobenius_error_aligned') or []
-    learning_rates = history.get('learning_rates') or []
-    tm_norm = history.get('tm_norm') or []
-    has_mse = len(mse_losses) > 0
-    has_tm_error_aligned = len(tm_frobenius_error_aligned) > 0
-    has_learning_rates = len(learning_rates) > 0
-    has_tm_norm = len(tm_norm) > 0
-    
-    fig, axes = plt.subplots(3, 2, figsize=(15, 15))
-    
-    # Plot total loss
-    axes[0, 0].plot(history['epoch_losses'], 'b-', linewidth=2, marker='o', markersize=4)
-    axes[0, 0].set_xlabel('Epoch')
-    axes[0, 0].set_ylabel('Total Loss')
-    axes[0, 0].set_title('Training Loss vs Epoch')
-    axes[0, 0].grid(True, alpha=0.3)
-    axes[0, 0].set_yscale('log')  # Log scale for better visualization
-    
-    # Plot MSE loss
-    if has_mse:
-        axes[0, 1].plot(mse_losses, 'r-', label='MSE Loss', linewidth=2, marker='s', markersize=4)
-        axes[0, 1].set_xlabel('Epoch')
-        axes[0, 1].set_ylabel('Loss')
-        axes[0, 1].set_title('MSE Loss vs Epoch')
-        axes[0, 1].legend()
-        axes[0, 1].grid(True, alpha=0.3)
-        axes[0, 1].set_yscale('log')
-    else:
-        axes[0, 1].axis('off')
-    
-    # Plot TM norm
-    if has_tm_norm:
-        axes[1, 0].plot(tm_norm, 'purple', linewidth=2, marker='d', markersize=4)
-        axes[1, 0].set_xlabel('Epoch')
-        axes[1, 0].set_ylabel('TM Norm')
-        axes[1, 0].set_title('Transmission Matrix Norm vs Epoch')
-        axes[1, 0].grid(True, alpha=0.3)
-    else:
-        axes[1, 0].axis('off')
-    
-    # Plot TM Frobenius error
-    if has_tm_error_aligned:
-        axes[1, 1].plot(tm_frobenius_error_aligned, 'blue', linewidth=2, marker='^', markersize=4, label='Phase-Aligned')
-        axes[1, 1].set_xlabel('Epoch')
-        axes[1, 1].set_ylabel('TM Frobenius Error')
-        axes[1, 1].set_title('TM Reconstruction Error (Phase-Aligned) vs Epoch')
-        axes[1, 1].legend()
-        axes[1, 1].grid(True, alpha=0.3)
-        axes[1, 1].set_yscale('log')
-    else:
-        # Fallback if no TM error data
-        axes[1, 1].plot(history['epoch_losses'], 'b-', linewidth=2, marker='o', markersize=4)
-        axes[1, 1].set_xlabel('Epoch')
-        axes[1, 1].set_ylabel('Total Loss')
-        axes[1, 1].set_title('Training Loss vs Epoch (Linear Scale)')
-        axes[1, 1].grid(True, alpha=0.3)
-    
-    # Plot learning rate
-    if has_learning_rates:
-        axes[2, 0].plot(learning_rates, 'orange', linewidth=2, marker='*', markersize=6)
-        axes[2, 0].set_xlabel('Epoch')
-        axes[2, 0].set_ylabel('Learning Rate')
-        axes[2, 0].set_title('Learning Rate vs Epoch')
-        axes[2, 0].grid(True, alpha=0.3)
-        axes[2, 0].set_yscale('log')
-    
-    # Hide the unused subplot
-    axes[2, 1].axis('off')
-    
-    plt.tight_layout()
-    plt.show()
-    
-    # Print summary statistics
-    print("\n=== Training History Summary ===")
-    print(f"Initial Loss: {history['epoch_losses'][0]:.6f}")
-    print(f"Final Loss: {history['epoch_losses'][-1]:.6f}")
-    print(f"Loss Reduction: {history['epoch_losses'][0]/history['epoch_losses'][-1]:.2f}x")
-    
-    if has_mse:
-        print(f"Initial MSE Loss: {mse_losses[0]:.6f}")
-        print(f"Final MSE Loss: {mse_losses[-1]:.6f}")
-    
-    if has_tm_norm:
-        print(f"Initial TM Norm: {tm_norm[0]:.6f}")
-        print(f"Final TM Norm: {tm_norm[-1]:.6f}")
-    
-    if has_tm_error_aligned:
-        print(f"Initial TM Error (Phase-Aligned): {tm_frobenius_error_aligned[0]:.6f}")
-        print(f"Final TM Error (Phase-Aligned): {tm_frobenius_error_aligned[-1]:.6f}")
-        print(f"TM Error Reduction (Phase-Aligned): {tm_frobenius_error_aligned[0]/tm_frobenius_error_aligned[-1]:.2f}x")
-    
-    print("=" * 35)
 
 # Functions to load and process real MMF measurement data from H5 files.
 def load_real_mmf_data(h5_file_path: str, experiment_group: str, train_test_split_ratio: float = 0.8, random_seed: int = 42, im_factor: float = 1.0):
@@ -794,185 +721,5 @@ def list_h5_experiments(h5_file_path: str):
             print(f"  {i}: {group}")
         return groups
 
-def solve_fast_cholesky(Y: torch.Tensor, X: torch.Tensor, alpha: float = 1e-4) -> torch.Tensor:
-    """
-    Optimized solver for TM using Cholesky decomposition with ridge regularization.
-    
-    Solves T = Y @ X^dagger where X^dagger is the regularized pseudo-inverse.
-    Uses Cholesky decomposition for numerical stability and speed.
-    
-    Args:
-        Y: Output mode matrix, shape (N_modes, N_samples) - complex
-        X: Input mode matrix, shape (N_modes, N_samples) - complex
-        alpha: Regularization factor for ridge regression (default 1e-4)
-        
-    Returns:
-        T: Transmission matrix, shape (N_modes, N_modes) - complex
-    """
-    N = Y.shape[0]
-    
-    # Compute the Gram matrix G = X @ X^H (covariance of X)
-    G = X @ X.mH  # Shape (N_modes, N_modes)
-    
-    # Add scale-aware ridge regularization: A = G + alpha * max(|diag(G)|) * I
-    # Scaling by the strongest diagonal mode suppresses weak/noisy mode blow-up.
-    diag_max = torch.max(torch.abs(torch.diagonal(G)))
-    regularizer = alpha * diag_max * torch.eye(N, dtype=Y.dtype, device=Y.device)
-    A = G + regularizer
-    
-    # Compute RHS: Y @ X^H
-    rhs = Y @ X.mH  # Shape (N_modes, N_modes)
-    
-    # Solve A @ T^H = (Y @ X^H)^H for T^H
-    # This is equivalent to solving T @ A = Y @ X^H for T
-    target = rhs.mH  # Shape (N_modes, N_modes)
-    
-    # Cholesky decomposition: A = L @ L^H
-    L = torch.linalg.cholesky(A)
-    
-    # Solve A @ T^H = target using Cholesky factorization
-    T_conj = torch.cholesky_solve(target, L)
-    
-    # Return T (not T^H)
-    T = T_conj.mH.resolve_conj()
-    return T
 
 
-def run_spectral_initialization(
-    tm_system,
-    slm_patterns: torch.Tensor,
-    intensity_targets: torch.Tensor,
-    num_iters: int = 15,
-    num_inner_iters: int = 3,
-    ridge_alpha: float = 1e-4
-):
-    """
-    Implements the Enhanced Iterative Projection (Gerchberg-Saxton style) initialization.
-    
-    Algorithm (with nested inner loop for better convergence):
-    OUTER LOOP (num_iters):
-        INNER LOOP (num_inner_iters):
-            1. Generate Fields (Image & Fourier) from current Y estimate
-            2. Correct Amplitudes using Intensity Targets (keep Phase)
-            3. Project Corrected Fields back to Mode Space -> Y_new
-            4. Update Y estimate for next inner iteration
-        5. Update T to minimize ||Y_new - T @ X|| using Cholesky solver
-    
-    The inner loop refines field estimates in pixel space before committing to a T update,
-    improving convergence rate by 2-3x.
-
-    Args:
-        num_inner_iters: Number of pixel-space refinement iterations before T update (default: 3)
-
-    Mode basis: Uses image-plane modes from the original tm_system (tm_system.mode_fields).
-    When there is no Fourier plane (e.g. enforce_symmetric_tm=False), the Fourier plane
-    is added using the same ZoomFFT as in TMMeasurementSystem (see TM_retrieve.py).
-    """
-    print(f"Running Enhanced Spectral Initialization: {num_iters} outer iters, {num_inner_iters} inner iters per batch...")
-    
-    batch_size = 100  # Process in chunks to save memory
-    num_measurements = slm_patterns.shape[0]
-    num_batches = (num_measurements + batch_size - 1) // batch_size
-    with torch.no_grad():
-        # --- 0. Use image-plane modes from tm_system; add Fourier plane via ZoomFFT when missing ---
-        mode_basis = tm_system.mode_fields  # (1, 2, H, W, N_modes) or (2, 2, H, W, N_modes)
-        if mode_basis.shape[0] == 1:
-            # Same recipe as TM_retrieve.py:257-265 — ZoomFFT from image plane
-            z_fwd = tm_system._get_zoomfft_params_dict(tm_system.zoomfft_out_fwd_params)
-            image_plane = mode_basis  # (1, 2, H, W, N_modes)
-            fields_for_fft = image_plane.permute(4, 0, 1, 2, 3)  # (N_modes, 1, 2, H, W)
-            fourier_plane = tm_system.zoomfft['tran'](fields_for_fft, inverse=False, **z_fwd)  # (N_modes, 1, 2, H, W)
-            fourier_plane = fourier_plane * tm_system.mult_factor['tran']
-            fourier_plane = fourier_plane.permute(1, 2, 3, 4, 0)  # (1, 2, H, W, N_modes)
-            fourier_plane = fourier_plane.detach()
-            mode_basis = torch.cat([image_plane, fourier_plane], dim=0)  # (2, 2, H, W, N_modes)
-            print("Spectral init: added Fourier plane to mode basis (ZoomFFT, same as TM_retrieve).")
-        num_planes = mode_basis.shape[0]
-
-        # --- 1. Pre-calculate Input Modes Matrix X ---
-        # We need the full X matrix to solve for T later
-        X_list = []
-        for i in range(num_batches):
-            start = i * batch_size
-            end = min(start + batch_size, num_measurements)
-            batch_slm = slm_patterns[start:end]
-            # Get input modes (X)
-            batch_X = tm_system.slm_to_input_modes(batch_slm, use_internal_params=True)
-            X_list.append(batch_X) # (N_modes, Batch)
-        
-        X_full = torch.cat(X_list, dim=1) # (N_modes, Total_Samples)
-        
-        # Initialize Y estimate: Y = T_init @ X
-        Y_current = tm_system.optimized_tm @ X_full  # (N_modes, Total_Samples)
-        
-        # Pre-flatten mode basis for fast projection
-        basis_flat = mode_basis.view(num_planes, 2, -1, mode_basis.shape[-1])  # (Planes, Pol, H*W, Modes)
-        basis_flat_conj = torch.conj(basis_flat)
-        
-        # --- 2. Outer Loop: Update T ---
-        for k in range(num_iters):
-            # --- Inner Loop: Refine Y estimate in pixel space ---
-            for inner_k in range(num_inner_iters):
-                Y_refined_list = []
-                
-                # Process in batches to handle field calculations
-                for i in range(num_batches):
-                    start = i * batch_size
-                    end = min(start + batch_size, num_measurements)
-                    # Data for this batch
-                    batch_Y_current = Y_current[:, start:end]  # (N_modes, Batch)
-                    batch_target_intensity = intensity_targets[start:end] # (Batch, 2, H, W)
-                    
-                    # A. Generate Fields from current Y estimate
-                    # Shape: (Batch, Planes, Polarizations, H, W)
-                    fields = tm_system.calculate_fields_from_mode_dist(batch_Y_current)
-                    if num_planes == 2 and fields.shape[1] == 1:
-                        # Add Fourier plane via ZoomFFT (same as mode basis)
-                        z_fwd = tm_system._get_zoomfft_params_dict(tm_system.zoomfft_out_fwd_params)
-                        fourier_plane_fields = tm_system.zoomfft['tran'](fields, inverse=False, **z_fwd)
-                        fourier_plane_fields = fourier_plane_fields * tm_system.mult_factor['tran']
-                        fields = torch.cat([fields, fourier_plane_fields], dim=1)  # (B, 2, 2, H, W)
-                    
-                    # B. Amplitude Correction (Gerchberg-Saxton Step)
-                    # Keep phase, replace amplitude: |E_new| = sqrt(Target)
-                    current_amplitude = torch.sqrt(torch.sum(torch.abs(fields)**2, dim=2, keepdim=True)) # (Batch, Planes, 1, H, W)
-                    target_amplitude = torch.sqrt(batch_target_intensity).unsqueeze(2) # (Batch, Planes, 1, H, W)
-                    
-                    scale_factor = target_amplitude / (current_amplitude + 1e-8)
-                    fields_corrected = fields * scale_factor
-                    
-                    # C. Project Back to Modes (Y_refined)
-                    # Use pre-flattened conjugated basis
-                    B, P, Pol, H, W = fields_corrected.shape
-                    fields_flat = fields_corrected.view(B, P, Pol, -1)  # (B, P, Pol, H*W)
-                    
-                    # Project: Sum(Field * Conj(Basis)) using einsum
-                    Y_projections = torch.einsum('bpoh, pohm -> bpm', fields_flat, basis_flat_conj)
-                    
-                    # Normalize by mode powers
-                    Y_projections = Y_projections / tm_system.mode_powers.view(1, 1, -1)
-                    
-                    # Average estimates from Image and Fourier planes
-                    batch_Y_refined = torch.mean(Y_projections, dim=1).T  # (Modes, Batch)
-                    Y_refined_list.append(batch_Y_refined)
-                
-                # Update Y_current for next inner iteration
-                Y_current[:, :] = torch.cat(Y_refined_list, dim=1)
-            
-            # --- After inner loop convergence: Update T ---
-            # Minimize ||Y_current - T @ X|| via Cholesky solver
-            import time
-            t0 = time.time()
-            new_T = solve_fast_cholesky(Y_current, X_full, alpha=ridge_alpha)
-            t1 = time.time()
-            print(f"Solve fast cholesky time: {t1 - t0:.4f} seconds")
-            tm_system.optimized_tm_tensor = new_T
-            
-            # Re-initialize Y for next outer iteration: Y = T_new @ X
-            Y_current = new_T @ X_full
-            
-            # Print progress
-            if k % 5 == 0 or k == num_iters - 1:
-                print(f"  Init Outer Iter {k+1}/{num_iters}: T Updated (after {num_inner_iters} inner refinements)")
-
-    print("Spectral Initialization Complete.")

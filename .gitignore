@@ -1,0 +1,31 @@
+# --- never publish: bulk data and derived tensors -------------------------
+*.h5
+*.pt
+*.npy
+# the two small LP8,11 prediction arrays are figure inputs
+!paper/figures/*.npy
+
+# --- local-only working area ---------------------------------------------
+_archive/
+data/mode_fields/
+results/demo/
+wandb/
+
+# --- environments and caches ---------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.vscode/
+.cursor/
+
+# --- LaTeX build products -------------------------------------------------
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.synctex.gz

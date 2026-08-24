@@ -1,0 +1,17 @@
+{
+  "zenodo_record_url": "TODO: fill in after upload",
+  "files": [
+    {
+      "filename": "measurement_motor_pcc.h5",
+      "bytes": 995080280,
+      "sha256": "570712f3a5a030466faa553a4c1a76e9b3daed5589bb5c358e7fa5024a0fe814",
+      "description": "Modal pipeline dataset: groups initial_calibration and post_motor (6032 probes, 128x128)."
+    },
+    {
+      "filename": "measurement_raf.h5",
+      "bytes": 404550496,
+      "sha256": "0ab85ff053df6139c524cb12308fd32d372f8d55fa4bbbc38aa797f636c48e4b",
+      "description": "Pixel-basis baseline dataset: group experiment_0 (6032 probes, 32x32 SLM macros, 128x128 cameras)."
+    }
+  ]
+}
