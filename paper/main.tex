@@ -95,34 +95,31 @@ These demands are relaxed by drawing the reference from the light already traver
 
 An alternative approach relies on the guided modes of the fiber as the basis for representing the TM. The dimension of the TM is then set by the number of modes, rather than the potentially larger number of pixels used to sample them, thereby lowering the measurement budget. Even so, most modal retrievals remain interferometric, recovering the transmitted field by digital holography against an external reference\cite{rothe2019, li2021}. The only reference-less realization excites the modes one at a time and reads them out through a correlation filter \cite{bruning2015}, which cannot be scaled for thousands of modes, due to alignment limitations and filter capacity. Moreover, most of these methods assume scalar fields \cite{rothe2019, li2021, bruning2015}, and address a single polarization, thus forfeiting half the fiber's capacity.
 
-Full control over the field outside the laboratory requires a retrieval process possessing the compactness and vectorial reach of the modal basis without relying on sensitive and complicated additions such as an interferometer.
+Full control over the field outside the laboratory requires a retrieval process possessing the compactness and vectorial reach of the modal basis without relying on sensitive and complicated additions such as interferometer.
 
-Here, we present the first (to our knowledge) reference-less full TM retrieval by embedding \textit{a priori} knowledge of the guided modes directly into the retrieval process. We cast the retrieval as a non-convex optimization constrained by the physical mode space, writing each output field as a superposition of known vector modes that span the entire fiber facet. Three critical advantages naturally emerge from this approach. First, these constraints lift the row-wise phase ambiguity of conventional single-plane retrieval, so the field can be propagated away from the calibration plane. Second, the modes' vectorial structure separates the two field components from polarization-summed intensity, without an output polarizer. Third, because the retrieval spans only the $M$ DOF that the fiber transmits, it converges faster and requires fewer measurements than state-of-the-art reference-less methods. We start by retrieving the TM of a fiber supporting $M=1508$ modes from intensities recorded in both the image and Fourier planes, and demonstrate control over both planes, over the modal basis, and, in the image plane, over both polarization components. We further relax the demand for two measurement planes, retrieving the TM from a single plane and focusing in the unconstrained conjugate plane. Altogether, this method brings complete field control within reach of a reference-less measurement, paving the way for MMFs to leave the optical bench, toward endoscopes and links where interferometric stability cannot be assumed.
-
+Here, we experimentally demonstrate for the first time, to our knowledge, a reference-less full TM retrieval over a MMF supporting $M=1508$ modes. Embedding \textit{a priori} constraints of the guided modes directly into the retrieval process, by writing each output field as a superposition of globally supported vector modes, allows for three significant advantages. First, these constraints lift the row-wise phase ambiguity of conventional single-plane retrieval. Second, the modes' structure allows for vectorial control over the output, without the need for an additional polarizer. Third, due to the reduced DoFs needed compared to working in the pixal-basis the retrieval converges faster and requires fewer measurements than state-of-the-art reference-less methods. Altogether, this method brings complete field control with reduced physical and computational requirements, paving the way for real-world MMF applications such as endoscopes and optical transceivers.
 
 \section{Results}
 \paragraph{Theoretical Overview}
-We retrieve the TM directly in the modal basis from intensity-only measurements.
-The guided modes are the vector solutions of the waveguide equations, fixed once the fiber's geometry and refractive-index profile are known, so their transverse amplitude, phase, and polarization distributions enter the retrieval as known constraints.
-In an ideal, perfectly straight fiber the TM is diagonal in this basis: each mode propagates independently, acquiring only a mode-dependent phase.
-Core ellipticity, stress, and bending couple the guided modes and populate the off-diagonal elements, redistributing power across the modal basis \cite{xiong2017}.
-What the retrieval must recover is how these modes mix.
+We retrieve the TM directly in the modal basis where the guided modes are the vector solutions of the fiber, given its geometry and refractive-index profile. The transverse amplitude, phase, and polarization distributions of each solutions are, therefore, the known constraints of the retrieval. Namely, in an ideal, perfectly straight fiber the TM is diagonal in this basis, where each mode propagates independently, acquiring only a mode-dependent phase.
 
-Intensity data from a single plane leave the relative phase between output pixels undetermined, so the recovered matrix takes the form $T_{\text{meas}} = \text{diag}(e^{i\phi_n}) \cdot T_{\text{true}}$, with one unknown $\phi_n$ per output pixel \cite{dremeau2015,zhong2023}.
-These row-dependent factors leave the intensity unchanged at the calibration plane but corrupt the spatial phase needed to propagate the field elsewhere.
-Polarization-summed detection compounds this: with no output polarizer the camera records only $|E_x|^2+|E_y|^2$, so neither the amplitude nor the phase of the individual components is measured, which is why vectorial TM measurements conventionally separate the polarization channels at detection \cite{tripathi2012,xie2017}.
+However, in reality, core ellipticity, stress, and bending couple the guided modes, thus populating the off-diagonal elements and redistributing power across the modal basis \cite{xiong2017}. The retrieved TM, therefore, provides the information about the mixing among these modes.
 
-The modal expansion removes both freedoms with a single constraint.
-Writing the output field as
+This mixing, however, is only partly accessible to a reference-less measurement, which loses information in two ways.
+In the pixel basis, intensity recorded in a single plane determines the field at each output pixel only up to a phase, so the retrieval returns $\tilde{T}=DT$ rather than $T$ itself, with $D=\mathrm{diag}(e^{i\phi_1},\dots,e^{i\phi_N})$ an unknown diagonal phase matrix \cite{dremeau2015, nonconvex_opt}.
+A second loss follows from the detection itself. The cameras are polarization-insensitive, so the recorded $I=|E_x|^2+|E_y|^2$ preserves the total intensity of each pixel but neither its division between the two components nor the phase between them: sampled on $N$ pixels, the vector field carries $2N$ complex amplitudes, while one plane returns $N$ real numbers.
+The known mode profiles recover both losses at once. Writing the output field as
 \begin{equation}
 \mathbf{E}(x,y)=\sum_{l=1}^{M} y_l\left(\psi_{l,x}(x,y)\,\hat{x}+\psi_{l,y}(x,y)\,\hat{y}\right),
 \end{equation}
-with the vector mode profiles $\psi_{l,c}$ known in advance, ties every pixel of both components to the same $M$ coefficients $y_l$: the row phases $\phi_n$ are no longer free, and $E_x$ and $E_y$ are no longer independently unknown.
-Recording both planes simultaneously over-constrains the fit, a strategy with a long history in scalar phase retrieval \cite{gerchberg1972} and in pixel-basis TM recovery \cite{zhong2023,retrieving_the_complex_TM}; it is not, however, what breaks the ambiguity, as one plane is shown below to suffice.
+replaces the $2N$ pixel amplitudes by $M$ modal coefficients $y_l$, with $M \ll 2N$, each carried by a profile that spans the entire output plane rather than a single pixel.
+A diagonal phase matrix can then no longer pass unnoticed: applying $D$ to a field of this form takes it out of the span of the modes unless all $\phi_n$ coincide, so the $N$ undetermined phases reduce to one global phase.
+The polarization is recovered in the same step, since $\psi_{l,x}$ and $\psi_{l,y}$ set the amplitude ratio and the relative phase of the two components of mode $l$, so the single coefficient $y_l$ fixes both.
+What the measurement does not separate, the modal basis supplies.
 
 \paragraph{Physical Modeling}
 
-A detailed description of the experimental optical setup is provided in the Supplementary Materials. Our forward model follows the same optical path to predict the image- and Fourier-plane intensities produced by a given SLM pattern.
+A detailed description of the experimental optical setup is provided in the Supplementary Materials.
 A phase pattern $\Phi(x,y)$ on the spatial light modulator (SLM) modulates one polarization component of the incident field $\mathbf{E}_{\text{inc}}=E_{\text{inc},x}\hat{x}+E_{\text{inc},y}\hat{y}$, giving $\mathbf{E}_{\text{SLM}} = E_{\text{inc},x}\exp(i\Phi)\hat{x} + E_{\text{inc},y}\hat{y}$.
 The SLM is imaged onto the back focal plane of the input objective, so propagation to the fiber facet is modeled as a Fourier transform.
 Projecting the facet field onto the guided modes yields the input modal excitation vector $\mathbf{z}_{\text{in}} \in \mathbb{C}^M$.
@@ -133,7 +130,7 @@ With $P_{c,p}$ the linear projection from the modal basis to the pixels of plane
 \begin{equation}
 I_{\text{pred}, p}(x, y) = |E_{x,p}(x, y)|^2 + |E_{y,p}(x, y)|^2.
 \end{equation}
-We retrieve $T$ by fitting the physical model to the measurements.
+Our forward model follows the same optical path to predict the image- and Fourier-plane intensities produced by a given SLM pattern, and we retrieve $T$ by fitting the physical model to the measurements.
 
 \paragraph{TM-Enabled Wavefront Control}
 
