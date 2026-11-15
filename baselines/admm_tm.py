@@ -46,10 +46,11 @@ class ADMMOptions:
     mu: float = 5.0
     rho: float = 4.0
     iters: int = 30
-    # Orthogonality-promoting initialization of x0.
+    # Orthogonality-promoting initialization of x0 (named in the paper, but not cited or
+    # parameterized; TAF definition assumed, see _orthogonality_promoting_init).
     npower_iter: int = 30
-    # Fraction of largest normalized-amplitude measurements used by the complementary
-    # covariance power iteration (the standard orthogonality-promoting choice is 5/6).
+    # Fraction of largest-amplitude measurements kept for the power iteration
+    # (TAF, arXiv:1605.08285, Algorithm 1 uses |I0| = ceil(m/6); this code keeps 5/6).
     init_keep_ratio: float = 5.0 / 6.0
     # Tikhonov ridge added to A^H A for a numerically stable closed-form x-update.
     ridge: float = 1e-6
@@ -67,47 +68,33 @@ def _orthogonality_promoting_init(
 
     Batched over the K output locations (columns of `c_amp`). Returns X0 of shape (N, K).
 
-    The small-amplitude measurements identify sensing rows nearly orthogonal to the
-    unknown. As in the standard scalable implementation, power iteration is applied
-    to their complement (the largest normalized amplitudes), using unit-norm sensing
-    rows and binary—not amplitude-dependent—weights.
+    Wei et al. name an "orthogonality-promoting estimate" but neither cite nor specify it; this
+    is the simplest form of the method that introduced the term (Wang, Giannakis & Eldar,
+    truncated amplitude flow, arXiv:1605.08285, Algorithm 1). The exact variant Wei et al.
+    ran is unknown.
+
+    Probes with the smallest measured amplitudes are nearly orthogonal to x, so x0 should be
+    the direction most orthogonal to them: the smallest eigenvector of A_S^H A_S. Because
+    A^H A ~ P*I for random-phase probes, that is approximately the leading eigenvector of
+    A_T^H A_T, with T the remaining keep_ratio * P largest amplitudes, which power iteration
+    finds quickly (the direct smallest-eigenvector iteration needs ~1000 steps here).
+
+    Simplifications (no effect for this problem): no per-probe norm normalization (phase-only
+    probes all have norm sqrt(N)) and no scaling of x0 (u0 = c * u0/|u0| discards it).
     """
     p, n = a_fwd.shape
     k = c_amp.shape[1]
-    device = a_fwd.device
-    dtype_c = a_fwd.dtype
+    x = torch.randn((n, k), generator=generator, device=a_fwd.device, dtype=a_fwd.dtype)
 
-    if generator is not None:
-        x = torch.randn((n, k), generator=generator, device=device, dtype=torch.float32) + 1j * torch.randn(
-            (n, k), generator=generator, device=device, dtype=torch.float32
-        )
-    else:
-        x = torch.randn((n, k), device=device, dtype=torch.float32) + 1j * torch.randn(
-            (n, k), device=device, dtype=torch.float32
-        )
-    x = x.to(dtype_c)
-    x = x / torch.linalg.vector_norm(x, ord=2, dim=0, keepdim=True).clamp(min=1e-30)
-
-    row_norms = torch.linalg.vector_norm(a_fwd, ord=2, dim=1, keepdim=True).clamp(min=1e-30)
-    a_normalized = a_fwd / row_norms
-    a_normalized_adj = a_normalized.conj().transpose(0, 1).contiguous()
-
-    y = c_amp**2  # (P, K) intensities
-    normest = torch.sqrt(torch.mean(y, dim=0, keepdim=True))
-    normalized_amp = c_amp / (row_norms * normest.clamp(min=1e-30))
-
-    # Select the complement of the most-orthogonal sensing rows. This is equivalent
-    # to finding the minimum-eigenvalue direction of the small-amplitude covariance,
-    # but permits an inexpensive largest-eigenvalue power iteration.
-    keep_count = max(1, min(p, int(round(p * keep_ratio))))
-    threshold = torch.kthvalue(normalized_amp, p - keep_count + 1, dim=0).values.unsqueeze(0)
-    indicator = (normalized_amp >= threshold).to(dtype_c)
+    keep_count = max(1, min(p, round(p * keep_ratio)))
+    top = torch.topk(c_amp, keep_count, dim=0).indices  # (keep_count, K) strongest probes
+    mask = torch.zeros_like(c_amp).scatter_(0, top, 1.0).to(a_fwd.dtype)
+    a_adj = a_fwd.conj().transpose(0, 1)
 
     for _ in range(npower_iter):
-        x = a_normalized_adj @ (indicator * (a_normalized @ x))
-        x = x / torch.linalg.vector_norm(x, ord=2, dim=0, keepdim=True).clamp(min=1e-30)
-
-    return normest.to(dtype_c) * x
+        x = a_adj @ (mask * (a_fwd @ x))
+        x = x / torch.linalg.vector_norm(x, dim=0, keepdim=True).clamp(min=1e-30)
+    return x
 
 
 def admm_tm_epochs(

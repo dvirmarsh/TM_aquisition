@@ -7,7 +7,7 @@ Andrew and Erna Viterbi Department of Electrical & Computer Engineering, Technio
 
 Reference-less retrieval of a multimode fiber's transmission matrix (TM) in the guided-mode basis, from intensity-only camera measurements (no interferometer). One retrieved TM controls two output planes (image and Fourier) and both polarization components.
 
-Manuscript: `paper/main.tex`. Data DOI: **TODO** (Zenodo record not uploaded yet). Citation: see `CITATION.cff`.
+Manuscript: `paper/main.tex`. Data DOI: [10.5281/zenodo.24243174](https://doi.org/10.5281/zenodo.24243174). Citation: see `CITATION.cff`.
 
 ```
 Marsh, D., Fridman, L., Mannor, S. & Bartal, G.
@@ -95,7 +95,7 @@ Two files (~1.3 GB). sha256 values are in `data/manifest.json`.
 python data/download_data.py
 ```
 
-The Zenodo URL is still a placeholder (`ZENODO_RECORD_URL = "TODO: fill in after upload"`). Until it is filled in, place `measurement_motor_pcc.h5` and `measurement_raf.h5` in `data/` manually. `python data/download_data.py --help` works today; a download without a URL exits with a clear message.
+This downloads `measurement_motor_pcc.h5` and `measurement_raf.h5` from Zenodo ([10.5281/zenodo.24243174](https://doi.org/10.5281/zenodo.24243174)) into `data/` and verifies their sha256.
 
 | File | Role |
 |---|---|
@@ -196,7 +196,7 @@ Everything else that used to live in `TM_retrieval_algos.py` (MSE/PCC line-searc
 | `utils.py` | Mode-field rendering and cache, `ZoomFFT2D_Optimizable`, `ZernikeAberrationLayer`, H5 loaders, and `sample_tm_perturbed_mmf` (random-matrix TM sampler used only by the `lab_data=False` simulation path). |
 | `TM_retrieve.py` | `TMMeasurementSystem`: forward chain `slm_to_input_modes` → `input_modes_to_output_modes` → `output_modes_to_intensities` → `forward_model_slm`, plus `calibrate()`. |
 | `TM_retrieval_algos.py` | The two published solvers. |
-| `metrics_losses.py` | `PearsonCorrelationLoss` (`1 - PCC`, the scale-invariant intensity objective) and the center-disk focus metric. |
+| `metrics_losses.py` | `PearsonCorrelationLoss` (`1 - PCC`, the scale-invariant intensity objective) and the focus enhancement factor (target window over the fiber core / NA disk; `_focus_metric_from_intensity_map`, `enhancement_factor`). |
 | `motor_pos_utils.py` | Run labels and deterministic subset sampling. |
 
 `TMMeasurementSystem` is the forward model only. Exploratory plotting, evaluation wrappers, `main()`, and `enforce_symmetric_tm` were removed for the release, so a reader comparing against an earlier draft is not looking at a different optical model — those paths were unused in the paper.

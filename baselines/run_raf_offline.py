@@ -27,7 +27,7 @@ sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from raf21_tm import RAF21Options, raf21_tm_epochs
-from metrics_losses import _focus_metric_from_intensity_map
+from metrics_losses import PBR_DEFINITION, _focus_metric_from_intensity_map, peak_to_background_ratio
 from motor_pos_utils import (
     DEFAULT_NUM_RANDOM_TRIALS,
     mask_run_label,
@@ -268,7 +268,11 @@ def optimize_raf_focus_mask(
     lr: float,
     center_radius: int,
 ) -> Tuple[torch.Tensor, float]:
-    """Optimize SLM phase against the retrieved pixel-basis TM; return phase and focus metric."""
+    """
+    Optimize SLM phase against the retrieved pixel-basis TM (maximizing the centre-window
+    enhancement) and return the phase with the PBR of its predicted intensity
+    (metrics_losses.PBR_DEFINITION).
+    """
     device = a_pixel.device
     a_pixel_detached = a_pixel.detach()
     slm_phase_low = nn.Parameter(2 * torch.pi * torch.rand((n_pix_slm, n_pix_slm), dtype=torch.float32, device=device))
@@ -287,8 +291,8 @@ def optimize_raf_focus_mask(
         x_flat = torch.exp(1j * phi_low).reshape(-1)
         e_out = a_pixel_detached @ x_flat
         i_pred = (e_out.abs() ** 2).reshape(n_pix_out, n_pix_out)
-        final_metric = float(_focus_metric_from_intensity_map(i_pred, center_radius).item())
-    return phi_low, final_metric
+    final_pbr, _ = peak_to_background_ratio(i_pred)
+    return phi_low, final_pbr
 
 
 class RafSlmMaskWriter:
@@ -352,6 +356,7 @@ class RafSlmMaskWriter:
             grp["phase_masks_full_uint8"].resize(idx + 1, axis=0)
             grp["phase_masks_full_uint8"][idx] = full_mask
         grp.attrs["focus_eval_plane"] = self.focus_eval_plane
+        grp.attrs["focus_metric_definition"] = PBR_DEFINITION
         grp.attrs["last_epoch"] = epoch + 1
         parsed = parse_mask_run_label(run_label)
         if parsed.get("trial") is not None:
@@ -374,9 +379,9 @@ class OfflineRafConfig:
     random_seed: int = 42
     device: str = "cuda"
     raf_iters: int = 200
-    # MATLAB default mu=3.0 is tuned for clean simulated data and diverges on real lab
-    # measurements (model mismatch); mu=1.0 is stable here and improves on the spectral init.
-    raf_mu: float = 0.0
+    # ratio/beta/gamma/npower_iter are the values of the reference RAF21_tm_cpu.m (beta, gamma
+    # and npower_iter are fixed constants there); only mu is tuned.
+    raf_mu: float = 0.6
     raf_ratio: float = 2.0 / 3.0
     raf_beta: float = 5.0
     raf_gamma: float = 0.5
@@ -423,6 +428,7 @@ def run_offline(cfg: OfflineRafConfig) -> Dict:
         "subset_runs": {},
         "num_random_trials": cfg.num_random_trials,
         "offline": True,
+        "focus_metric_definition": PBR_DEFINITION,
         "n_slm_pixels": n_slm_pixels,
         "slm_n_out": cfg.slm_n_out,
         "n_out": cfg.n_out,
@@ -496,7 +502,7 @@ def run_offline(cfg: OfflineRafConfig) -> Dict:
                     ls_losses_acc.append(float(ls_loss))
                     print(
                         f"[{run_label}] epoch {epoch + 1}/{cfg.raf_iters} | "
-                        f"time={epoch_seconds:.2f}s | ls_loss={ls_loss:.4f} | simulated_focus={focus_metric:.4f}"
+                        f"time={epoch_seconds:.2f}s | ls_loss={ls_loss:.4f} | simulated_PBR={focus_metric:.2f}"
                     )
 
                 raf21_tm_epochs(
@@ -538,9 +544,9 @@ def main() -> None:
     parser.add_argument("--output-dir", type=str, default="results/offline/raf21")
     parser.add_argument("--device", type=str, default="cuda", choices=["cuda", "cpu"])
     parser.add_argument("--raf-iters", type=int, default=200)
-    parser.add_argument("--raf-mu", type=float, default=0.5)
+    parser.add_argument("--raf-mu", type=float, default=0.4)
     parser.add_argument("--raf-ratio", type=float, default=2.0 / 3.0)
-    parser.add_argument("--raf-beta", type=float, default=1.0)
+    parser.add_argument("--raf-beta", type=float, default=5.0)
     parser.add_argument("--raf-gamma", type=float, default=0.5)
     parser.add_argument("--raf-npower-iter", type=int, default=30)
     parser.add_argument("--slm-opt-iters", type=int, default=150)

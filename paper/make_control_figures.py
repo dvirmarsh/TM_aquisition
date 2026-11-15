@@ -14,24 +14,28 @@ IMAGE_DIR = PAPER_DIR / "image_results"
 CONTROL_OUTPUT_PATH = PAPER_DIR / "figures" / "tm_wavefront_control.png"
 CROSS_PLANE_OUTPUT_PATH = PAPER_DIR / "figures" / "tm_cross_plane_focus.png"
 VECTORIAL_OUTPUT_PATH = PAPER_DIR / "figures" / "tm_vectorial_control.png"
-# Decades of dynamic range for logarithmic focus display.
-LOG_DYNAMIC_RANGE = 3.0
+MODAL_OUTPUT_PATH = PAPER_DIR / "figures" / "tm_modal_control.png"
 
 RESULT_ROWS = [
     [
-        ("im_image_1.png", r"$\eta=835.8$", True),
-        ("im_multispot_image.png", r"$\eta_3=186.0$", True),
-        ("im_one_hot_modes_image.png", r"$\mathrm{PCC}=0.905$", False),
-        ("im_target_corr_target_1_image.png", r"$\mathrm{PCC}=0.931$", False),
-        ("im_target_corr_target_2_image.png", r"$\mathrm{PCC}=0.935$", False),
+        ("im_image_single_spot.png", r"$\mathrm{PBR}=521.1$"),
+        ("im_multispot_image.png", r"$\mathrm{PBR}_3=158.2$"),
+        ("im_target_corr_target_1_image.png", r"$\mathrm{PCC}=0.926$"),
+        ("im_target_corr_target_2_image.png", r"$\mathrm{PCC}=0.922$"),
     ],
     [
-        ("im_fourier_1.png", r"$\eta=663.5$", True),
-        ("im_multispot_fourier.png", r"$\eta_3=238.4$", True),
-        ("im_one_hot_modes_fourier.png", r"$\mathrm{PCC}=0.927$", False),
-        ("im_target_corr_target_1_fourier.png", r"$\mathrm{PCC}=0.880$", False),
-        ("im_target_corr_target_2_fourier.png", r"$\mathrm{PCC}=0.898$", False),
+        ("im_fourier_single_spot.png", r"$\mathrm{PBR}=525.3$"),
+        ("im_multispot_fourier.png", r"$\mathrm{PBR}_3=180.6$"),
+        ("im_target_corr_target_1_fourier.png", r"$\mathrm{PCC}=0.857$"),
+        ("im_target_corr_target_2_fourier.png", r"$\mathrm{PCC}=0.879$"),
     ],
+]
+
+# Selective excitation of one guided mode: a single SLM pattern, recorded in both planes.
+# PCC with the TM-predicted intensity of the target mode (mode_profile_pcc in run_summary.json).
+MODAL_PANELS = [
+    ("im_one_hot_modes_image_he811.png", r"$\mathrm{PCC}=0.891$", "Image plane", "(a)"),
+    ("im_one_hot_modes_fourier_he811.png", r"$\mathrm{PCC}=0.895$", "Fourier plane", "(b)"),
 ]
 
 TARGET_IMAGES = [
@@ -42,13 +46,13 @@ TARGET_IMAGES = [
 CROSS_PLANE_PANELS = [
     (
         "image from fourier.png",
-        r"$\eta=493.1$",
+        r"$\mathrm{PBR}=316.7$",
         "Image plane\n(TM from Fourier)",
         "(a)",
     ),
     (
         "fourier_from_image.png",
-        r"$\eta=381.3$",
+        r"$\mathrm{PBR}=433.3$",
         "Fourier plane\n(TM from image)",
         "(b)",
     ),
@@ -68,23 +72,15 @@ def _load_raw_image(path: Path) -> np.ndarray:
     return np.maximum(image.astype(np.float64), 0.0)
 
 
-def load_for_display(path: Path, *, logarithmic: bool = False) -> np.ndarray:
-    """Scale a raw camera image for display without peak clipping/saturation."""
+def load_for_display(path: Path) -> np.ndarray:
+    """Scale a raw camera image linearly to [0, 1] without peak clipping/saturation."""
     image = _load_raw_image(path)
     upper = float(image.max()) if image.size else 0.0
     if upper <= 0.0:
         return np.zeros_like(image)
 
     # Normalize by the true maximum so bright pixels are never saturated.
-    image = image / upper
-    if not logarithmic:
-        return image
-
-    floor = 10.0 ** (-LOG_DYNAMIC_RANGE)
-    log_image = np.log10(image + floor)
-    log_min = np.log10(floor)
-    log_max = np.log10(1.0 + floor)
-    return (log_image - log_min) / (log_max - log_min)
+    return image / upper
 
 
 def style_image_axis(axis: plt.Axes) -> None:
@@ -116,13 +112,13 @@ def add_metric_overlay(axis: plt.Axes, metric: str) -> None:
 def generate_control_figure() -> None:
     CONTROL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-    figure, axes = plt.subplots(2, 5, figsize=(11.2, 4.9), facecolor="white")
+    figure, axes = plt.subplots(2, 4, figsize=(9.0, 4.9), facecolor="white")
 
     for result_row in range(2):
-        for column, (filename, metric, logarithmic) in enumerate(RESULT_ROWS[result_row]):
+        for column, (filename, metric) in enumerate(RESULT_ROWS[result_row]):
             axis = axes[result_row, column]
             axis.imshow(
-                load_for_display(IMAGE_DIR / filename, logarithmic=logarithmic),
+                load_for_display(IMAGE_DIR / filename),
                 cmap="gray",
                 vmin=0,
                 vmax=1,
@@ -131,7 +127,7 @@ def generate_control_figure() -> None:
             add_metric_overlay(axis, metric)
             style_image_axis(axis)
 
-            if column >= 3:
+            if column >= 2:
                 target_axis = inset_axes(
                     axis,
                     width="24%",
@@ -140,7 +136,7 @@ def generate_control_figure() -> None:
                     borderpad=0.0,
                 )
                 target_axis.imshow(
-                    load_for_display(IMAGE_DIR / TARGET_IMAGES[column - 3]),
+                    load_for_display(IMAGE_DIR / TARGET_IMAGES[column - 2]),
                     cmap="gray",
                     vmin=0,
                     vmax=1,
@@ -154,7 +150,7 @@ def generate_control_figure() -> None:
                     spine.set_linewidth(1.8)
 
     figure.subplots_adjust(
-        left=0.135,
+        left=0.168,
         right=0.995,
         top=0.875,
         bottom=0.035,
@@ -163,7 +159,7 @@ def generate_control_figure() -> None:
     )
 
     figure.text(
-        0.025,
+        0.031,
         0.625,
         "Image\nplane",
         ha="center",
@@ -172,7 +168,7 @@ def generate_control_figure() -> None:
         fontweight="bold",
     )
     figure.text(
-        0.025,
+        0.031,
         0.265,
         "Fourier\nplane",
         ha="center",
@@ -183,9 +179,9 @@ def generate_control_figure() -> None:
 
     main_centers = [
         axes[0, column].get_position().x0 + axes[0, column].get_position().width / 2
-        for column in range(5)
+        for column in range(4)
     ]
-    for x_position, label in zip(main_centers[:3], ("(a)", "(b)", "(c)")):
+    for x_position, label in zip(main_centers[:2], ("(a)", "(b)")):
         figure.text(
             x_position,
             0.92,
@@ -197,9 +193,9 @@ def generate_control_figure() -> None:
         )
 
     figure.text(
-        (main_centers[3] + main_centers[3]) / 2,
+        (main_centers[2] + main_centers[3]) / 2,
         0.92,
-        "(d)",
+        "(c)",
         ha="center",
         va="center",
         fontsize=14,
@@ -222,7 +218,7 @@ def generate_cross_plane_figure() -> None:
 
     for axis, (filename, metric, subtitle, label) in zip(axes, CROSS_PLANE_PANELS):
         axis.imshow(
-            load_for_display(IMAGE_DIR / filename, logarithmic=True),
+            load_for_display(IMAGE_DIR / filename),
             cmap="gray",
             vmin=0,
             vmax=1,
@@ -243,6 +239,35 @@ def generate_cross_plane_figure() -> None:
     plt.close(figure)
 
 
+def generate_modal_figure() -> None:
+    MODAL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    figure, axes = plt.subplots(1, 2, figsize=(6.4, 3.2), facecolor="white")
+
+    for axis, (filename, metric, subtitle, label) in zip(axes, MODAL_PANELS):
+        axis.imshow(
+            load_for_display(IMAGE_DIR / filename),
+            cmap="gray",
+            vmin=0,
+            vmax=1,
+            interpolation="nearest",
+        )
+        if metric:
+            add_metric_overlay(axis, metric)
+        style_image_axis(axis)
+        axis.set_xlabel(subtitle, fontsize=11, labelpad=8)
+        axis.set_title(label, fontsize=14, fontweight="bold", pad=8)
+
+    figure.subplots_adjust(left=0.02, right=0.98, top=0.88, bottom=0.18, wspace=0.08)
+    figure.savefig(
+        MODAL_OUTPUT_PATH,
+        dpi=300,
+        bbox_inches="tight",
+        facecolor="white",
+    )
+    plt.close(figure)
+
+
 def generate_vectorial_figure() -> None:
     VECTORIAL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
@@ -250,7 +275,7 @@ def generate_vectorial_figure() -> None:
 
     for axis, (filename, subtitle, label) in zip(axes, VECTORIAL_PANELS):
         axis.imshow(
-            load_for_display(IMAGE_DIR / filename, logarithmic=True),
+            load_for_display(IMAGE_DIR / filename),
             cmap="gray",
             vmin=0,
             vmax=1,
@@ -272,6 +297,7 @@ def generate_vectorial_figure() -> None:
 
 def main() -> None:
     generate_control_figure()
+    generate_modal_figure()
     generate_cross_plane_figure()
     generate_vectorial_figure()
 

@@ -40,6 +40,7 @@ from motor_pos_utils import (
     sample_random_subset_indices,
 )
 from utils import load_real_mmf_data
+from metrics_losses import PBR_DEFINITION, nominal_fiber_support_mask, peak_to_background_ratio
 
 
 def _subset_sizes_for_n_modes(n_modes: int) -> List[int]:
@@ -237,6 +238,11 @@ class OfflineMotorPccConfig:
     skip_pcc: bool = False
     pcc_subset_sizes: Optional[List[int]] = None
     step3_mode: str = "pcc_focus"
+    # Step 3 options: "auto" focuses on the plane complementary to a single-plane TM;
+    # "image" / "fourier" force the focus plane. With single_plane_subset_sweep, a
+    # single-plane TM runs the same subset sweep and random trials as the dual-plane case.
+    focus_eval_plane_override: str = "auto"
+    single_plane_subset_sweep: bool = False
 
 
 def initialize_tm_system(cfg: OfflineMotorPccConfig) -> TMMeasurementSystem:
@@ -316,6 +322,11 @@ def optimize_slm_pattern_with_tm(
     center_radius: int = 1,
     target_plane: str = "image",
 ) -> Tuple[torch.Tensor, float]:
+    """
+    Maximize the TM-predicted focus at the frame centre (target-window mean over the fiber
+    support outside the window) and return the phase with the PBR of its predicted
+    intensity (metrics_losses.PBR_DEFINITION).
+    """
     for param in tm_system.parameters():
         param.requires_grad = False
     tm_system.eval()
@@ -330,7 +341,9 @@ def optimize_slm_pattern_with_tm(
     y_min, y_max = max(0, cy - center_radius), min(h, cy + center_radius + 1)
     x_min, x_max = max(0, cx - center_radius), min(w, cx + center_radius + 1)
     center_mask[y_min:y_max, x_min:x_max] = True
-    background_mask = ~center_mask
+    # Enhancement background: fiber core (image) / NA disk (Fourier) minus the target window.
+    support_mask = torch.from_numpy(nominal_fiber_support_mask((h, w))).to(device)
+    background_mask = support_mask & ~center_mask
     plane_idx = 0 if target_plane.lower() == "image" else 1
 
     for _ in range(num_iterations):
@@ -347,8 +360,10 @@ def optimize_slm_pattern_with_tm(
     with torch.no_grad():
         pred_intensity = tm_system.forward_model_slm(optimized_phase.unsqueeze(0))
         plane_intensity = pred_intensity[0, plane_idx]
-        final_metric = float((plane_intensity[center_mask].mean() / plane_intensity[background_mask].mean()).item())
-    return optimized_phase, final_metric
+    final_pbr, _ = peak_to_background_ratio(
+        plane_intensity, support_mask.cpu().numpy(), target_yx=(cy, cx)
+    )
+    return optimized_phase, final_pbr
 
 
 def phase_to_uint8(phase_rad: np.ndarray) -> np.ndarray:
@@ -491,6 +506,7 @@ class SlmMaskWriter:
             grp["phase_masks_full_uint8"].resize(idx + 1, axis=0)
             grp["phase_masks_full_uint8"][idx] = full_mask
         grp.attrs["focus_eval_plane"] = self.focus_eval_plane
+        grp.attrs["focus_metric_definition"] = PBR_DEFINITION
         grp.attrs["last_epoch"] = epoch + 1
         parsed = parse_mask_run_label(run_label)
         if parsed.get("trial") is not None:
@@ -515,6 +531,7 @@ def run_offline(cfg: OfflineMotorPccConfig) -> Dict:
         "motor_location_mm": cfg.motor_position_mm,
         "num_random_trials": cfg.num_random_trials,
         "offline": True,
+        "focus_metric_definition": PBR_DEFINITION,
     }
     geometry = load_slm_geometry(cfg)
     if geometry is None:
@@ -619,10 +636,16 @@ def run_offline(cfg: OfflineMotorPccConfig) -> Dict:
     optimizer_fn = optimize_tm_admm_dual_plane
     summary["optimization_method"] = method
     summary["step3_optimize_planes"] = cfg.pcc_optimize_planes
-    cfg.focus_eval_plane = _focus_eval_plane_for_pcc_planes(cfg.pcc_optimize_planes)
+    if cfg.focus_eval_plane_override in ("image", "fourier"):
+        cfg.focus_eval_plane = cfg.focus_eval_plane_override
+    else:
+        cfg.focus_eval_plane = _focus_eval_plane_for_pcc_planes(cfg.pcc_optimize_planes)
     summary["focus_eval_plane"] = cfg.focus_eval_plane
+    summary["tm_checkpoint_path"] = str(cfg.tm_checkpoint_path)
 
-    single_plane_full_set = _pcc_uses_single_plane(cfg.pcc_optimize_planes)
+    single_plane_full_set = (
+        _pcc_uses_single_plane(cfg.pcc_optimize_planes) and not cfg.single_plane_subset_sweep
+    )
     step3_label = "full-set benchmark" if single_plane_full_set else "subset benchmarks"
     print(
         f"Step 3/3: {method.upper()} {step3_label} + saving SLM focus masks "
@@ -704,7 +727,7 @@ def run_offline(cfg: OfflineMotorPccConfig) -> Dict:
                     simulated_focus_metrics.append(float(focus_metric))
                     print(
                         f"[{run_label}] epoch {epoch + 1}/{cfg.pcc_num_epochs} | "
-                        f"time={epoch_seconds:.2f}s | simulated_focus={focus_metric:.4f}"
+                        f"time={epoch_seconds:.2f}s | simulated_PBR={focus_metric:.2f}"
                     )
 
                 input_modes_slice = post_motor_input_modes[:, index_tensor]
@@ -821,12 +844,32 @@ def main() -> None:
         "(no subset sweep or random trials). Focus SLM masks maximize focus on the "
         "complementary plane (image TM → Fourier focus; Fourier TM → image focus; both → image).",
     )
+    parser.add_argument(
+        "--focus-eval-plane",
+        type=str,
+        default="auto",
+        choices=["auto", "image", "fourier"],
+        help="Step 3 focus plane. auto: complementary plane for a single-plane TM, image for both.",
+    )
+    parser.add_argument(
+        "--single-plane-subset-sweep",
+        action="store_true",
+        help="With --pcc-optimize-planes image|fourier, run the subset sweep and random trials "
+        "(same budgets as the dual-plane benchmark) instead of one full-set run.",
+    )
+    parser.add_argument(
+        "--tm-checkpoint",
+        type=str,
+        default="",
+        help="Calibrated TM checkpoint to save (step 1) or load (--skip-tm-optimization / "
+        "--use-tm-checkpoint). Default: <output-dir>/tm_system_checkpoint.pt",
+    )
     args = parser.parse_args()
 
     cfg = OfflineMotorPccConfig()
     cfg.output_h5_path = args.h5_path
     cfg.output_dir = args.output_dir
-    cfg.tm_checkpoint_path = str(Path(args.output_dir) / "tm_system_checkpoint.pt")
+    cfg.tm_checkpoint_path = args.tm_checkpoint or str(Path(args.output_dir) / "tm_system_checkpoint.pt")
     cfg.slm_masks_h5_path = str(Path(args.output_dir) / "slm_focus_masks.h5")
     cfg.device = args.device
     cfg.use_tm_checkpoint = args.use_tm_checkpoint
@@ -846,6 +889,8 @@ def main() -> None:
     cfg.num_random_trials = args.num_random_trials
     cfg.step3_mode = "pcc_focus"
     cfg.pcc_optimize_planes = args.pcc_optimize_planes
+    cfg.focus_eval_plane_override = args.focus_eval_plane
+    cfg.single_plane_subset_sweep = args.single_plane_subset_sweep
     cfg.focus_eval_plane = _focus_eval_plane_for_pcc_planes(cfg.pcc_optimize_planes)
 
     run_offline(cfg)

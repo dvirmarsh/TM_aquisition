@@ -27,6 +27,7 @@ from motor_pos_utils import mask_run_sort_key, parse_mask_run_label
 from acquire_baseline_dataset import RafDataAcquiringConfig, RafDataAcquiringPipeline
 from run_raf_offline import _rows_to_markdown_table, load_slm_geometry, pack_raf_phase_to_full_slm, OfflineRafConfig
 from run_wavefront_control import _resolve_tm_lib_path
+from metrics_losses import PBR_DEFINITION, peak_to_background_ratio
 
 
 def _resolve_path(path: str) -> Path:
@@ -138,17 +139,19 @@ def replay_masks(
         raw = np.squeeze(np.array(raw))
         proc = pipeline.crop_and_resize_image(raw, "transmission_image").astype(np.float32)
         proc = np.flip(proc)
-        metric = pipeline.center_background_focus_metric(
+        # PBR (metrics_losses.PBR_DEFINITION): peak near the offline target (frame centre)
+        # over the fiber core outside the 3x3 window around the peak.
+        metric, _ = peak_to_background_ratio(
             proc,
-            center_radius=pipeline.cfg.focus_center_radius_px,
-            target_yx=None,
+            pipeline.support_mask("image", proc.shape),
+            target_yx=(proc.shape[0] // 2, proc.shape[1] // 2),
         )
         measured_metrics.append(float(metric))
         if save_artifacts:
             tag = f"{subset_key}_epoch_{epoch_idx + 1:03d}"
             cv2.imwrite(str(output_dir / f"im_center_focus_{tag}.png"), _image_for_display(proc))
             np.save(output_dir / f"projected_full_phase_mask_uint8_{tag}.npy", phase_mask)
-        print(f"  epoch {epoch_idx + 1}: measured_focus={metric:.4f}")
+        print(f"  epoch {epoch_idx + 1}: measured_PBR={metric:.2f}")
 
     if save_artifacts:
         out_path = output_dir / f"{subset_key}_measured_focus_metrics.npy"
@@ -321,7 +324,11 @@ def replay_all_masks(
     use_full_masks: bool = True,
     save_artifacts: bool = True,
 ) -> Dict[str, Any]:
-    summary: Dict[str, Any] = {"subset_runs": {}, "masks_h5_path": str(masks_h5_path)}
+    summary: Dict[str, Any] = {
+        "subset_runs": {},
+        "masks_h5_path": str(masks_h5_path),
+        "focus_metric_definition": PBR_DEFINITION,
+    }
     if offline_summary_path is not None and offline_summary_path.exists():
         with open(offline_summary_path, encoding="utf-8") as f:
             offline_summary = json.load(f)

@@ -15,7 +15,23 @@ authors:
   - family-names: Bartal
     given-names: Guy
     affiliation: "Andrew and Erna Viterbi Department of Electrical & Computer Engineering, Technion, Haifa 3200003, Israel"
-doi: "10.xxxx/zenodo.TODO"
-date-released: "2026-01-01"
-license: "SEE LICENSE FILE"
-url: "TODO"
+repository-code: "https://github.com/dvirmarsh/TM_aquisition"
+keywords:
+  - multimode fiber
+  - transmission matrix
+  - phase retrieval
+  - wavefront shaping
+references:
+  - type: data
+    title: "Measurement data for: Breaking the Phase-Ambiguity Limit: Reference-less 3D Vectorial Transmission-Matrix Retrieval in Multimode Fibers"
+    authors:
+      - family-names: Marsh
+        given-names: Dvir
+      - family-names: Fridman
+        given-names: Lior
+      - family-names: Mannor
+        given-names: Shie
+      - family-names: Bartal
+        given-names: Guy
+    doi: "10.5281/zenodo.24243174"
+    repository: "https://zenodo.org/records/24243174"

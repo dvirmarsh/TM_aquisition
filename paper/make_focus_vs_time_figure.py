@@ -119,6 +119,8 @@ def plot_lab_focus_vs_time(
     output_path: Path,
     suptitle: str | None = None,
     show: bool = False,
+    focus_threshold: float = 700.0,
+    ylabel: str = "Measured PBR (mean ± std)",
 ) -> None:
     if not subset_sizes:
         raise ValueError("subset_sizes must not be empty")
@@ -133,8 +135,6 @@ def plot_lab_focus_vs_time(
         squeeze=False,
     )
     axes_flat = axes.ravel()
-
-    focus_threshold = 700.0
 
     for ax, subset_size in zip(axes_flat, subset_sizes):
         final_times: List[float] = []
@@ -194,7 +194,7 @@ def plot_lab_focus_vs_time(
         size_label = SUBSET_SIZE_LABELS.get(subset_size, str(subset_size))
         ax.set_title(f"Subset size = {size_label}")
         ax.set_xlabel("time (seconds)")
-        ax.set_ylabel("Measured center focus metric (mean ± std)")
+        ax.set_ylabel(ylabel)
         ax.grid(True, alpha=0.3)
         ax.legend(loc="best", fontsize=9)
 
@@ -233,6 +233,8 @@ def plot_fourier_plane_lab_focus_vs_time(
             "(mean ± std over trials)"
         ),
         show=show,
+        # Fourier-plane replay table predates the PBR switch (old window-based metric).
+        ylabel="Measured center focus metric (mean ± std)",
     )
 
 
@@ -301,6 +303,12 @@ def main() -> None:
         type=Path,
         default=project_root / "paper" / "figures" / "lab_focus_vs_accumulated_time_fourier_plane.png",
     )
+    parser.add_argument(
+        "--focus-threshold",
+        type=float,
+        default=700.0,
+        help="Measured PBR whose first crossing is marked by a dashed line in each panel",
+    )
     parser.add_argument("--show", action="store_true")
     args = parser.parse_args()
 
@@ -316,6 +324,7 @@ def main() -> None:
         subset_sizes=subset_sizes,
         output_path=args.output,
         show=args.show,
+        focus_threshold=args.focus_threshold,
     )
     plot_fourier_plane_lab_focus_vs_time(
         args.fourier_plane_lab_csv,

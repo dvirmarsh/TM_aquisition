@@ -23,8 +23,15 @@ sys.path.insert(0, str(REPO_ROOT.parent))     # the private lab repo providing c
 
 from create_refs import create_SLM, create_SLMpy, create_cmeras
 from TM_retrieve import TMMeasurementSystem
-from metrics_losses import PearsonCorrelationLoss
+from metrics_losses import FIBER_CROP_MARGIN, PearsonCorrelationLoss, disk_support_mask, enhancement_factor
 from utils import load_real_mmf_data
+
+# Recorded in every JSON summary so new results can be told apart from runs that
+# used the old full-frame background.
+ENHANCEMENT_DEFINITION = (
+    "eta = mean(I over target window) / mean(I over fiber support minus target window); "
+    "support = fiber core disk (image plane) or NA disk (Fourier plane)"
+)
 
 
 def _resolve_tm_lib_path(path: str) -> str:
@@ -289,6 +296,9 @@ class PipelineConfig:
     one_hot_mode_opt_iters: int = 150
     one_hot_mode_opt_lr: float = 0.1
     one_hot_power_epsilon: float = 1e-12
+    # Random SLM patterns used to report the TM-predicted fraction of power in the
+    # target mode before optimization (mean/std over patterns). 0 disables.
+    one_hot_random_baseline_patterns: int = 100
 
 
 class TMFocusPipeline:
@@ -319,9 +329,13 @@ class TMFocusPipeline:
         self.dx_im = {"tran": dx_cam / self.magnification, "ref": dx_cam / self.magnification}
         self.dx_four = {"tran": dx_cam, "ref": dx_cam * (250.0 / 200.0)}
         na = 0.22
-        margin = 1.1
+        margin = FIBER_CROP_MARGIN
         obj_f = 200e-3 / self.magnification
         core_radius = 25e-6
+        # Kept for the enhancement-factor support (fiber core / NA disk).
+        self.na = na
+        self.obj_f = obj_f
+        self.core_radius = core_radius
         self.dx_slm = 8e-6 * (150.0 / 400.0)
         four_range = margin * na * obj_f
         im_range = margin * core_radius
@@ -345,6 +359,29 @@ class TMFocusPipeline:
             "transmission_fourier": centers_dict["TF"][1],
             "PhaseMask": self.pm_center_y,
         }
+
+    def support_radius_px(self, plane: str, out_size: int = None) -> float:
+        """
+        Radius, in pixels of the cropped-and-resized frame, of the region the fiber can
+        illuminate: the core (radius a) in the image plane, the NA disk (radius NA * f_obj)
+        in the Fourier plane. Same geometry as crop_and_resize_image and the TM grid.
+        """
+        out = int(self.cfg.n_out if out_size is None else out_size)
+        if plane.lower() == "image":
+            phys_radius, dx, crop_half = self.core_radius, self.dx_im["tran"], self.n_pix["tran"]["im"]
+        elif plane.lower() == "fourier":
+            phys_radius, dx, crop_half = self.na * self.obj_f, self.dx_four["tran"], self.n_pix["tran"]["four"]
+        else:
+            raise ValueError(f"plane must be 'image' or 'fourier', got {plane!r}")
+        # crop_and_resize_image maps 2 * crop_half camera pixels onto `out` pixels.
+        return (phys_radius / dx) * out / (2.0 * crop_half)
+
+    def support_mask(self, plane: str, shape: Tuple[int, int]) -> np.ndarray:
+        """Boolean fiber-core (image) or NA-disk (Fourier) mask for a frame of `shape`."""
+        return disk_support_mask(shape, self.support_radius_px(plane, out_size=shape[0]))
+
+    def support_mask_torch(self, plane: str, shape: Tuple[int, int], device) -> torch.Tensor:
+        return torch.from_numpy(self.support_mask(plane, shape)).to(device)
 
     def setup(self) -> None:
         if self.cfg.slm_orig_lib:
@@ -571,8 +608,9 @@ class TMFocusPipeline:
         y_min, y_max = max(0, cy - center_radius), min(h, cy + center_radius + 1)
         x_min, x_max = max(0, cx - center_radius), min(w, cx + center_radius + 1)
         center_mask[y_min:y_max, x_min:x_max] = True
-        background_mask = ~center_mask
         plane_idx = 0 if target_plane.lower() == "image" else 1
+        plane = "image" if plane_idx == 0 else "fourier"
+        background_mask = self.support_mask_torch(plane, (h, w), device) & ~center_mask
 
         history = []
         for i in range(num_iterations):
@@ -612,7 +650,15 @@ class TMFocusPipeline:
         full_small[y_start:y_start + h, x_start:x_start + w] = np.flip(phase_uint8_small[:h, :w])
         return np.kron(full_small, np.ones((self.cfg.ratio, self.cfg.ratio), dtype=np.uint8))
 
-    def center_background_focus_metric(self, image_2d: np.ndarray, center_radius: int, target_yx: Tuple[int, int] = None) -> float:
+    def center_background_focus_metric(
+        self,
+        image_2d: np.ndarray,
+        center_radius: int,
+        target_yx: Tuple[int, int] = None,
+        plane: str = "image",
+    ) -> float:
+        """Enhancement factor: target-window mean over the mean of the fiber support
+        (core in the image plane, NA disk in the Fourier plane) outside the window."""
         h, w = image_2d.shape
         if target_yx is None:
             cy, cx = h // 2, w // 2
@@ -620,11 +666,9 @@ class TMFocusPipeline:
             cy, cx = int(target_yx[0]), int(target_yx[1])
         y0, y1 = max(0, cy - center_radius), min(h, cy + center_radius + 1)
         x0, x1 = max(0, cx - center_radius), min(w, cx + center_radius + 1)
-        center = image_2d[y0:y1, x0:x1]
-        background_mask = np.ones_like(image_2d, dtype=bool)
-        background_mask[y0:y1, x0:x1] = False
-        background = image_2d[background_mask]
-        return float(center.mean() / (background.mean()))
+        target_mask = np.zeros((h, w), dtype=bool)
+        target_mask[y0:y1, x0:x1] = True
+        return enhancement_factor(image_2d, target_mask, self.support_mask(plane, (h, w)))
 
     def sample_target_pixel_near_center(self, image_shape: Tuple[int, int], max_offset: int) -> Tuple[int, int]:
         h, w = image_shape
@@ -660,7 +704,9 @@ class TMFocusPipeline:
         image_2d: np.ndarray,
         center_radius: int,
         target_points: List[Tuple[int, int]],
+        plane: str = "image",
     ) -> float:
+        """Mean of the per-spot means over the mean of the fiber support outside all spots."""
         h, w = image_2d.shape
         spot_mask = np.zeros((h, w), dtype=bool)
         spot_means = []
@@ -669,7 +715,8 @@ class TMFocusPipeline:
             x0, x1 = max(0, tx - center_radius), min(w, tx + center_radius + 1)
             spot_mask[y0:y1, x0:x1] = True
             spot_means.append(float(image_2d[y0:y1, x0:x1].mean()))
-        background = image_2d[~spot_mask]
+        background_mask = self.support_mask(plane, (h, w)) & ~spot_mask
+        background = image_2d[background_mask]
         return float(np.mean(spot_means) / background.mean())
 
     def optimize_slm_pattern_multispot_with_tm(
@@ -693,6 +740,7 @@ class TMFocusPipeline:
         h = tm_system.grid_params["ny"]
         w = tm_system.grid_params["nx"]
         plane_idx = 0 if target_plane.lower() == "image" else 1
+        plane = "image" if plane_idx == 0 else "fourier"
 
         spot_masks = []
         occupied = torch.zeros((h, w), dtype=torch.bool, device=device)
@@ -703,7 +751,7 @@ class TMFocusPipeline:
             mask[y0:y1, x0:x1] = True
             spot_masks.append(mask)
             occupied |= mask
-        background_mask = ~occupied
+        background_mask = self.support_mask_torch(plane, (h, w), device) & ~occupied
 
         history = []
         for i in range(num_iterations):
@@ -797,6 +845,12 @@ class TMFocusPipeline:
         optimizer = optim.Adam([slm_phase], lr=lr)
         history: List[float] = []
 
+        # Mode-power distribution at the random initial SLM phase (before optimization).
+        with torch.no_grad():
+            p_initial = output_modes_to_normalized_powers(
+                tm_system.slm_to_output_modes(slm_phase), epsilon=power_normalize_epsilon
+            )[:, 0].detach().cpu().numpy()
+
         for i in range(num_iterations):
             optimizer.zero_grad()
             out_modes = tm_system.slm_to_output_modes(slm_phase)
@@ -822,7 +876,33 @@ class TMFocusPipeline:
             summary["p_final"] = p_final[:, 0].detach().cpu().numpy()
             summary["argmax_mode"] = int(p_final[:, 0].argmax().item())
             summary["max_p"] = float(p_final[:, 0].max().item())
+            k = summary["argmax_mode"]
+            summary["p_initial"] = p_initial
+            # Fraction of power in the target mode k at the initial (random) SLM phase.
+            summary["p_initial_target_mode"] = float(p_initial[k])
+            summary["purity_initial"] = float((p_initial**2).sum())
 
+            # Same fraction over an ensemble of independent random SLM patterns.
+            n_random = int(getattr(self.cfg, "one_hot_random_baseline_patterns", 0))
+            if n_random > 0:
+                p_k_random = []
+                chunk = 8
+                for start in range(0, n_random, chunk):
+                    b = min(chunk, n_random - start)
+                    rand_phase = 2 * torch.pi * torch.rand((b, *slm_shape), dtype=torch.float32, device=device)
+                    p_rand = output_modes_to_normalized_powers(
+                        tm_system.slm_to_output_modes(rand_phase), epsilon=power_normalize_epsilon
+                    )
+                    p_k_random.append(p_rand[k, :].detach().cpu().numpy())
+                p_k_random = np.concatenate(p_k_random)
+                summary["p_random_target_mode_mean"] = float(p_k_random.mean())
+                summary["p_random_target_mode_std"] = float(p_k_random.std())
+                summary["n_random_patterns"] = int(p_k_random.size)
+
+        print(
+            f"[one-hot modes] target mode {k}: p_initial={summary['p_initial_target_mode']:.4%} "
+            f"-> p_final={summary['max_p']:.4%}"
+        )
         return optimized_phase, history, summary
 
     def capture_transmission_one_hot_modes_pattern(self, optimized_phase_rad: torch.Tensor) -> None:
@@ -971,6 +1051,7 @@ class TMFocusPipeline:
                         transmission_img_proc,
                         center_radius=self.cfg.measured_focus_window,
                         target_yx=target_yx,
+                        plane=plane_name,
                     )
                     cv2.imwrite(
                         str(self.output_dir / f"im_{plane_name}_{i+1}.png"),
@@ -1018,6 +1099,7 @@ class TMFocusPipeline:
                     multi_img_proc,
                     center_radius=self.cfg.measured_focus_window,
                     target_points=multispot_targets,
+                    plane=plane_name,
                 )
                 cv2.imwrite(
                     str(self.output_dir / f"im_multispot_{plane_name}.png"),
@@ -1110,10 +1192,21 @@ class TMFocusPipeline:
                         "argmax_mode": one_hot_mode_summary["argmax_mode"],
                         "max_p": one_hot_mode_summary["max_p"],
                         "p_final": one_hot_mode_summary["p_final"].tolist(),
+                        "p_initial_target_mode": one_hot_mode_summary["p_initial_target_mode"],
+                        "purity_initial": one_hot_mode_summary["purity_initial"],
+                        "p_initial": one_hot_mode_summary["p_initial"].tolist(),
+                        "p_random_target_mode_mean": one_hot_mode_summary.get("p_random_target_mode_mean"),
+                        "p_random_target_mode_std": one_hot_mode_summary.get("p_random_target_mode_std"),
+                        "n_random_patterns": one_hot_mode_summary.get("n_random_patterns", 0),
                         "purity_history_last": one_hot_mode_history[-1] if one_hot_mode_history else None,
                     }
                 json.dump(
                     {
+                        "enhancement_definition": ENHANCEMENT_DEFINITION,
+                        "support_radius_px": {
+                            "image": self.support_radius_px("image"),
+                            "fourier": self.support_radius_px("fourier"),
+                        },
                         "config": asdict(self.cfg),
                         "one_spot_results_by_plane": one_spot_results_by_plane,
                         "multispot_by_plane": multispot_results_by_plane,

@@ -1,5 +1,6 @@
 {
-  "zenodo_record_url": "TODO: fill in after upload",
+  "zenodo_record_url": "https://zenodo.org/records/24243174",
+  "doi": "10.5281/zenodo.24243174",
   "files": [
     {
       "filename": "measurement_motor_pcc.h5",

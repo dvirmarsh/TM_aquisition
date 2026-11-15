@@ -1,0 +1,368 @@
+\documentclass{article}
+\RequirePackage[a4paper]{geometry}
+\geometry{top=25mm,bottom=25mm,left=25mm,right=25mm}
+\usepackage{mathptmx,graphicx}
+\usepackage{microtype}
+\setlength{\emergencystretch}{1.5em}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{hyperref}
+\usepackage[labelfont=bf]{caption}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\graphicspath{{figures/}}
+\bibliographystyle{unsrt}
+
+% Supplementary numbering: Section S1, Eq. (S1), Fig. S1, Table S1
+\renewcommand{\thesection}{S\arabic{section}}
+\renewcommand{\theequation}{S\arabic{equation}}
+\renewcommand{\thefigure}{S\arabic{figure}}
+\renewcommand{\thetable}{S\arabic{table}}
+% Open points for the authors
+\newcommand{\note}[1]{\textcolor{red}{[#1]}}
+
+\begin{document}
+
+\begin{center}
+{\Large\bfseries Supplementary Material\par}
+\vspace{1.5ex}
+{\large\bfseries Breaking the Phase-Ambiguity Limit: Reference-less 3D Vectorial Transmission-Matrix Retrieval in Multimode Fibers\par}
+\vspace{2ex}
+{\bfseries Dvir Marsh, Lior Fridman, Shie Mannor, Guy Bartal\par}
+\end{center}
+\vspace{2ex}
+
+%------------------------------------------------------------------------------
+\section{Guided-mode basis}
+\label{sec:modes}
+The modal basis consists of the guided vector modes of a step-index fiber.
+The fiber has core radius $a=25\,\mu$m, core index $n_1=1.457$, and $\mathrm{NA}=0.22$, and is operated at $\lambda=632.8$\,nm.
+Its normalized frequency is $V=k_0a\,\mathrm{NA}=54.61$, with $k_0=2\pi/\lambda$.
+
+We compute the modes in the weak-guidance approximation \cite{fiber_book}.
+For each azimuthal order $l\geq0$, the transverse parameter $u$ of the $\mathrm{LP}_{l,m}$ group is the $m$-th root of
+\begin{equation}
+\label{eq:dispersion}
+\frac{J_l(u)}{u\,J_{l-1}(u)}=-\frac{K_l(w)}{w\,K_{l-1}(w)},\qquad w=\sqrt{V^2-u^2},
+\end{equation}
+where $J_l$ and $K_l$ are the Bessel and modified Bessel functions, with $J_{-1}=-J_1$ and $K_{-1}=K_1$.
+The propagation constant of the group is $\beta=\sqrt{k_0^2n_1^2-u^2/a^2}$.
+Equation~\eqref{eq:dispersion} has 386 guided solutions for our fiber: 18 with $l=0$, 17 with $l=1$, and 351 with $l\geq2$.
+
+Each solution contributes the vector modes of its group.
+A group with $l=0$ contains the two $\mathrm{HE}_{1,m}$ modes.
+A group with $l=1$ contains $\mathrm{TE}_{0,m}$, $\mathrm{TM}_{0,m}$, and the two $\mathrm{HE}_{2,m}$ modes.
+A group with $l\geq2$ contains the two $\mathrm{EH}_{l-1,m}$ and the two $\mathrm{HE}_{l+1,m}$ modes.
+The two modes of each HE or EH pair have opposite azimuthal dependence, $e^{\pm in\varphi}$, where $n$ is the azimuthal order of the vector mode.
+The total is $M=2\times18+4\times(17+351)=1508$ modes: 772 HE, 702 EH, 17 TE, and 17 TM.
+
+The transverse profiles $(\psi_{l,x},\psi_{l,y})$ of Eq.~(1) of the main text follow from the analytical field expressions of Ref.~\cite{fiber_book}.
+We evaluate them in the core and in the cladding with the parameters $u$ and $w$ of the group.
+Each profile is sampled on the $128\times128$ grid of the image plane (Section~\ref{sec:experiment}) and normalized to unit power.
+The straight-fiber prior $T_0$ of the Methods uses the propagation constants $\beta$ with $L=1$\,m.
+
+In this approximation, all vector modes of a group share the radial profile of their LP group.
+The modes of a group therefore span the scalar $\mathrm{LP}_{l,m}$ profiles, $e^{\pm il\varphi}$, multiplied by both polarization components.
+Section~\ref{sec:polframe} relies on this property.
+
+%------------------------------------------------------------------------------
+\section{Experimental and data-processing details}
+\label{sec:experiment}
+\paragraph{Input side.}
+The SLM \note{model} has $1920\times1200$ pixels with a pitch of $8\,\mu$m.
+We use a region of $640\times640$ pixels, grouped into $128\times128$ macro-pixels of $5\times5$ pixels each.
+The relay L1--L2 demagnifies the SLM plane by $150/400$, so this region is $1.92$\,mm wide in the back focal plane of O1.
+The NA-limited disk in that plane has a diameter of $2\,\mathrm{NA}\,f=1.76$\,mm, where $f=4$\,mm is the focal length of the objective.
+
+\paragraph{Detection and frame processing.}
+Both cameras have a pixel pitch of $3.45\,\mu$m.
+The image-plane camera records the output facet at a magnification of 50, which corresponds to 69\,nm per camera pixel.
+We crop a square of $798\times798$ camera pixels centered on the core and resize it to $128\times128$ pixels by bilinear interpolation.
+The side of this square is $2.2a$, so one pixel of the resized frame corresponds to $0.430\,\mu$m on the facet.
+The Fourier-plane camera samples the back focal plane of O2 with an effective pixel pitch of $4.31\,\mu$m.
+We crop a square of $448\times448$ camera pixels, of side $2.2\,\mathrm{NA}\,f$, and resize it to $128\times128$ pixels.
+One pixel of this frame corresponds to $15.1\,\mu$m in the back focal plane.
+In both resized frames, the region $\Omega_F$ of the main text is a centered disk of radius $58.1$ pixels.
+It covers the core in the image plane and the NA-limited disk in the Fourier plane.
+
+\paragraph{Acquisition.}
+After each SLM update we wait 60\,ms, and then both cameras expose simultaneously.
+\note{exposure times and camera gain: values and units}
+The data of the time benchmark (Fig.~6 of the main text) consist of two sets of $6032=4M$ SLM patterns.
+The first set was recorded before the fiber was displaced and serves the joint fit (Section~\ref{sec:jointfit}).
+The second set was recorded after a motorized stage displaced the fiber by 5\,mm \note{confirm what the 5 mm translation moves}.
+The fast ADMM retrieval uses random subsets of this second set.
+The demonstrations of Figs.~3--5 of the main text use a separate acquisition of 6000 SLM patterns.
+\note{probe patterns: the scripts load precomputed ``mode-excitation'' masks rather than random phases; describe how these masks were generated}
+
+%------------------------------------------------------------------------------
+\section{Joint fit of the TM and the optics}
+\label{sec:jointfit}
+The joint fit minimizes the loss $L_{\mathrm{PCC}}$ of the Methods with the Adam optimizer.
+The trainable parameters are the following.
+\begin{itemize}
+\item The TM, $T\in\mathbb{C}^{M\times M}$, initialized to the straight-fiber prior $T_0$.
+\item The complex SLM mask $A(x,y)$ on the $128\times128$ macro-pixel grid, initialized to one.
+\item The polarization angle $\theta_{\mathrm{in}}$ of the incident field and a polarization rotation after the SLM, both initialized to zero.
+\item Four sets of eight Zernike coefficients (Noll indices 4--11), initialized to zero. The sets act before and after the input objective, in the image plane, and in the Fourier plane.
+\item Scale and offset parameters of the three numerical Fourier transforms of the model, initialized to their nominal values. Each transform has two scale factors and four center offsets.
+\end{itemize}
+The three transforms connect the SLM to the input facet, the image plane to the Fourier plane, and the Fourier plane back to the image plane.
+The learning rate is $0.01$ for $T$ and $0.005$ for all other parameters.
+We train for 100 epochs with mini-batches of 256 SLM patterns for the benchmark data and 512 for the data of Figs.~3--5.
+In each case, $95\%$ of the patterns are used for training and $5\%$ are held out.
+On the held-out patterns, the PCC between predicted and measured intensities is \note{value} in the image plane and \note{value} in the Fourier plane.
+After the fit, the operators $Z_{\mathrm{in}}$ and $P_{c,p}$ are computed once from the fitted parameters and kept fixed.
+
+%------------------------------------------------------------------------------
+\section{Closed-form TM update of the fast ADMM}
+\label{sec:tmupdate}
+Step~1 of Algorithm~1 minimizes
+\begin{equation}
+\label{eq:objective}
+f(T)=\sum_{c,p}\kappa_p\left\|P_{c,p}\,T\,Z_{\mathrm{in}}-V_{c,p}\right\|_F^2,\qquad V_{c,p}=U_{c,p}-\Lambda_{c,p},
+\end{equation}
+where $P_{c,p}\in\mathbb{C}^{N\times M}$, $Z_{\mathrm{in}}\in\mathbb{C}^{M\times K}$, and $V_{c,p}\in\mathbb{C}^{N\times K}$ for $N$ pixels per plane and $K$ SLM patterns.
+The objective is quadratic in $T$, and its gradient with respect to $T^*$ is
+\begin{equation}
+\frac{\partial f}{\partial T^*}=\sum_{c,p}\kappa_p\,P_{c,p}^{H}\left(P_{c,p}\,T\,Z_{\mathrm{in}}-V_{c,p}\right)Z_{\mathrm{in}}^{H}.
+\end{equation}
+Setting the gradient to zero gives the normal equations
+\begin{equation}
+\label{eq:normal}
+G\,T\,C=B\,Z_{\mathrm{in}}^{H},\qquad
+G=\sum_{c,p}\kappa_p\,P_{c,p}^{H}P_{c,p},\quad
+C=Z_{\mathrm{in}}Z_{\mathrm{in}}^{H},\quad
+B=\sum_{c,p}\kappa_p\,P_{c,p}^{H}V_{c,p}.
+\end{equation}
+Their solution is
+\begin{equation}
+\label{eq:closedform}
+T=G^{+}\,B\,Z_{\mathrm{in}}^{H}\,C^{+},
+\end{equation}
+where $^{+}$ denotes the Moore--Penrose pseudo-inverse.
+
+The matrices $G$ and $C$ are $M\times M$ and do not change during the iterations.
+$G$ depends only on the modal projections and the plane weights, and $C$ depends only on the SLM patterns.
+We therefore compute $G^{+}$ and $C^{+}$ once, discarding singular values below $10^{-4}$ of the largest one.
+Each iteration then requires only the matrix $B$ and the products of Eq.~\eqref{eq:closedform}.
+On the workstation of the main text, one iteration takes $0.13$--$0.30$\,s for $K=1.2M$ to $3M$.
+
+The pseudo-inverse is needed because $C$ is rank deficient.
+The SLM modulates one input polarization, so the vectors $\mathbf{z}_{\mathrm{in}}$ span only about half of the input modal space.
+Equation~\eqref{eq:closedform} then returns the minimum-norm solution, which is determined on the subspace that the SLM patterns excite.
+This subspace is sufficient to predict the output field of any SLM pattern.
+Before the iterations, the intensities are divided by their global mean and $Z_{\mathrm{in}}$ by its largest magnitude, for numerical stability in single precision.
+
+%------------------------------------------------------------------------------
+\section{Computing SLM patterns from the retrieved TM}
+\label{sec:slm}
+All SLM patterns in the main text are computed by gradient-based optimization through the forward model.
+The TM and the fitted parameters of the optics are held fixed.
+The optimization variable is the phase $\Phi$ of the $128\times128$ macro-pixels, initialized with independent uniform values in $[0,2\pi)$.
+We use the Adam optimizer with a learning rate of $0.1$ for 150 iterations, and 90 iterations in the time benchmark.
+The resulting phase is wrapped to $[0,2\pi)$, quantized to 256 levels, and replicated over the $5\times5$ SLM pixels of each macro-pixel.
+The targets differ only in the objective that is maximized.
+
+\paragraph{Single focus.}
+For a target pixel $\mathbf{r}_t$ in plane $p$, we maximize
+\begin{equation}
+\label{eq:focusobj}
+F_p(\mathbf{r}_t)=\frac{\langle I_{\mathrm{pred},p}\rangle_{W(\mathbf{r}_t)}}{\langle I_{\mathrm{pred},p}\rangle_{\Omega_F\setminus W(\mathbf{r}_t)}},
+\end{equation}
+where $W(\mathbf{r}_t)$ is a window of $(2h+1)\times(2h+1)$ pixels centered on the target.
+We use $h=1$ in the time benchmark and $h=0$ in Figs.~3--5 \note{confirm $h$ for the cross-plane and joint-fit demonstrations}.
+The objective differs from the reported PBR, which is evaluated on the brightest pixel of the measured focus (Section~\ref{sec:pbr}).
+
+\paragraph{Several foci.}
+For targets $\mathbf{r}_1,\dots,\mathbf{r}_J$, the numerator of Eq.~\eqref{eq:focusobj} is replaced by the mean of the $J$ window averages.
+The denominator is the mean over $\Omega_F$ outside all windows.
+To equalize the foci, we subtract a penalty $\lambda\,\sigma/\mu$ from the objective.
+Here, $\mu$ and $\sigma$ are the mean and the standard deviation of the $J$ window averages.
+We use $\lambda=10$ in the image plane and $\lambda=100$ in the Fourier plane.
+
+\paragraph{Extended patterns.}
+We maximize the PCC between the predicted intensity and the target image over the full $128\times128$ frame.
+The target image occupies the central $64\times64$ pixels of the frame and is zero elsewhere.
+
+\paragraph{Single guided mode.}
+We maximize $\sum_k p_k^2$, with $p_k=|w_k|^2/\sum_j|w_j|^2$ the fraction of the output power in mode $k$.
+This objective is maximal when all the power is in one mode, but it does not prescribe which mode.
+The mode reported in the main text is the one that carries the largest fraction after the optimization.
+
+\paragraph{Two orthogonally polarized foci.}
+For targets $\mathbf{r}_A$ and $\mathbf{r}_B$, we maximize the product $F_{x'}(\mathbf{r}_A)\,F_{y'}(\mathbf{r}_B)$.
+Each factor is Eq.~\eqref{eq:focusobj} evaluated on the intensity of one polarization component of the predicted field, $|E_{x'}|^2$ or $|E_{y'}|^2$.
+
+%------------------------------------------------------------------------------
+\section{Focusing metric and its expected value}
+\label{sec:pbr}
+\paragraph{Definition.}
+The PBR of a measured focus is evaluated on the resized $128\times128$ frame.
+$I_{\mathrm{peak}}$ is the brightest pixel within 3 pixels of the target, and $\Omega_T$ is the $3\times3$-pixel window centered on it.
+The background region $\Omega_B=\Omega_F\setminus\Omega_T$ contains $N_B=N_F-9$ pixels, where $N_F=10{,}612$ is the number of pixels in $\Omega_F$.
+
+\paragraph{Relation to the enhancement.}
+The enhancement is commonly defined as $\eta=I_{\mathrm{peak}}/\langle I\rangle_0$ \cite{focusing_coherent}.
+Here, $\langle I\rangle_0$ is the mean intensity at the target for unshaped, random SLM patterns.
+The PBR instead divides by the background of the same frame, which has lost the power concentrated in the focus.
+Assume that the focus pattern and the random patterns transmit the same power, and that $\langle I\rangle_0$ is uniform over $\Omega_F$.
+Power conservation over $\Omega_F$ then gives
+\begin{equation}
+\label{eq:pbr_eta}
+\mathrm{PBR}=\frac{\eta}{1-f_T}\,\frac{N_B}{N_F},
+\end{equation}
+where $f_T$ is the fraction of the power in $\Omega_F$ that falls inside $\Omega_T$.
+The PBR therefore exceeds $\eta$ by the factor $1/(1-f_T)$, and it is not bounded by the limit that applies to $\eta$.
+Table~\ref{tab:pbr} lists the three quantities for the single-spot foci of the main text.
+For this table, $\langle I\rangle_0$ was approximated by the mean of each focus frame over $\Omega_F$.
+
+\begin{table}[h]
+\centering
+\caption{\textbf{PBR and enhancement of the single-spot foci} (five targets per plane, mean $\pm$ standard deviation). The last three columns are estimates explained in the text.}
+\label{tab:pbr}
+\begin{tabular}{lcccccc}
+\toprule
+Plane & PBR & $\eta$ & $f_T$ & Speckle contrast & $\alpha$ & Expected $\eta$ \\
+\midrule
+Image & $526\pm71$ & $389\pm39$ & $0.26\pm0.02$ & $0.77$ & $0.28$ & $426$ \\
+Fourier & $619\pm101$ & $443\pm52$ & $0.28\pm0.04$ & $0.84$ & $0.18$ & $486$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Expected enhancement with polarization-summed detection.}
+For phase-only control of $N_{\mathrm{ch}}$ input channels and a single detected polarization, the expected enhancement is $(\pi/4)(N_{\mathrm{ch}}-1)+1$ \cite{focusing_coherent}.
+Our cameras sum both polarization components, and the phases can be aligned for only one component of the field at the target.
+Let $1-\alpha$ and $\alpha\leq1/2$ be the fractions of the unshaped mean intensity in the dominant polarization component at the target and in the orthogonal one.
+Aligning the phases of the dominant component enhances it, while the orthogonal component keeps its unshaped mean.
+The expected enhancement of the summed intensity is then
+\begin{equation}
+\label{eq:eta_pol}
+\eta_{\mathrm{exp}}=\frac{\pi}{4}\,(N_{\mathrm{ch}}-1)(1-\alpha)+1.
+\end{equation}
+\note{cite Shen 2016 and Woo 2022 here; entries to be added to references.bib}
+
+The fraction $\alpha$ can be estimated from the probe data without a polarizer.
+If the two components are independent, fully developed speckle patterns, the contrast of their sum over the SLM patterns is $\sqrt{1-2\alpha(1-\alpha)}$.
+The probe frames of the modal retrieval give a contrast of $0.77$ in the image plane and $0.84$ in the Fourier plane (median over the pixels within 45 pixels of the frame center).
+The corresponding estimates are $\alpha=0.28$ and $\alpha=0.18$.
+With $N_{\mathrm{ch}}=754$, Eq.~\eqref{eq:eta_pol} gives $\eta_{\mathrm{exp}}=426$ and $486$.
+The measured $\eta$ is $91\%$ of these values in both planes.
+\note{author check: $\alpha$ is inferred from speckle contrast, not measured with a polarizer. In the Fourier plane the unshaped mean intensity is not uniform over $\Omega_F$ (0.67 to 1.44 of its mean), so $\eta$ referenced to the $\Omega_F$ mean underestimates the local enhancement of the five targets by about 15\%.}
+
+%------------------------------------------------------------------------------
+\section{Polarization frame of the retrieved TM}
+\label{sec:polframe}
+\note{author note: the main text describes the remaining polarization freedom as a rotation of the axes. In the forward model, and in the simulations below, it is a general unitary Jones matrix; a rotation is the special case of Eq.~\eqref{eq:theta}. The main-text wording needs a decision.}
+
+\paragraph{Remaining freedom.}
+In the basis of Section~\ref{sec:modes}, the guided modes span the scalar LP profiles multiplied by both polarization components.
+A Jones matrix $U$ applied uniformly to the field therefore maps the modal subspace onto itself.
+Let $\Psi$ be the matrix that stacks the $x$ and $y$ profiles of all modes.
+Then $D(U)=\Psi^{+}(U\otimes\mathbb{1})\Psi$ is the $M\times M$ matrix that represents $U$ in the modal basis.
+If $U$ is unitary, it leaves the polarization-summed intensity unchanged in both planes.
+The matrices $T$ and $D(U)\,T$ thus predict identical intensities for every SLM pattern.
+The retrieval can determine the TM only up to this global unitary matrix.
+The laboratory field and the field predicted by the retrieved TM are related by
+\begin{equation}
+\label{eq:frame}
+\mathbf{E}_{\mathrm{lab}}(\mathbf{r})=c\,U\,\mathbf{E}(\mathbf{r}),
+\end{equation}
+with a complex constant $c$ and the same $U$ at every pixel and in both planes.
+The retrieved axes $x'$ and $y'$ correspond to two orthogonal polarization states in the laboratory, which are elliptical in general.
+A rotation of the axes by an angle $\theta$ is the special case $U=R(\theta)$.
+
+\paragraph{Polarizer measurements.}
+We describe the polarization at each pixel by the Stokes parameters $S_0=|E_x|^2+|E_y|^2$, $S_1=|E_x|^2-|E_y|^2$, $S_2=2\,\mathrm{Re}(E_xE_y^*)$, and $S_3=-2\,\mathrm{Im}(E_xE_y^*)$.
+A linear polarizer at angle $a$ in front of the camera transmits
+\begin{equation}
+I_a=\tfrac{1}{2}\left(S_0+S_1\cos2a+S_2\sin2a\right),
+\end{equation}
+evaluated with the laboratory field.
+Four images of one SLM pattern therefore give two Stokes images,
+\begin{equation}
+D_1=I_{0^\circ}-I_{90^\circ}=S_1^{\mathrm{lab}},\qquad D_2=I_{45^\circ}-I_{135^\circ}=S_2^{\mathrm{lab}}.
+\end{equation}
+The unitary matrix $U$ of Eq.~\eqref{eq:frame} rotates the vector $\mathbf{s}=(S_1,S_2,S_3)$ on the Poincar\'e sphere.
+With $\mathbf{s}(\mathbf{r})$ computed from the predicted field of the same SLM pattern, the two Stokes images obey
+\begin{equation}
+\label{eq:stokesmodel}
+D_i(\mathbf{r})=g\,\mathbf{R}_i\cdot\mathbf{s}(\mathbf{r}),\qquad i=1,2.
+\end{equation}
+Here, $\mathbf{R}_1$ and $\mathbf{R}_2$ are the first two rows of a rotation matrix $R\in\mathrm{SO}(3)$, and $g=|c|^2$ is an unknown gain.
+
+\paragraph{Closed-form solution.}
+Equation~\eqref{eq:stokesmodel} is linear in $g\,\mathbf{R}_i$, and its least-squares solution over the pixels of $\Omega_F$ is
+\begin{equation}
+\label{eq:lsq}
+\mathbf{a}_i=\Big(\sum_{\mathbf{r}}\mathbf{s}\,\mathbf{s}^{T}\Big)^{-1}\sum_{\mathbf{r}}D_i\,\mathbf{s},\qquad i=1,2.
+\end{equation}
+The two rows of $R$ are the orthonormal vectors closest to $\mathbf{a}_1$ and $\mathbf{a}_2$, obtained from a singular value decomposition of the $2\times3$ matrix $(\mathbf{a}_1,\mathbf{a}_2)^{T}$.
+The third row is their cross product.
+Writing $R$ as a rotation by an angle $\phi$ about the unit axis $\mathbf{n}$, the Jones matrix is
+\begin{equation}
+\label{eq:jones}
+\hat{U}=\cos\tfrac{\phi}{2}\,\mathbb{1}-i\sin\tfrac{\phi}{2}\left(n_1\sigma_z+n_2\sigma_x+n_3\sigma_y\right),
+\end{equation}
+with the Pauli matrices $\sigma_x$, $\sigma_y$, and $\sigma_z$.
+The first column of $R$ is the laboratory Stokes vector of the $x'$ state.
+Its azimuth is $\psi=\tfrac{1}{2}\arg(R_{11}+iR_{21})$ and its ellipticity angle is $\chi=\tfrac{1}{2}\arcsin R_{31}$.
+Replacing $T$ by $D(\hat{U})\,T$ aligns the axes of the retrieved TM with the laboratory axes.
+
+\paragraph{Rotation of the axes.}
+If the frames differ by a rotation, $U=R(\theta)$, then $S_1^{\mathrm{lab}}+iS_2^{\mathrm{lab}}=g\,e^{2i\theta}(S_1+iS_2)$ and Eq.~\eqref{eq:lsq} reduces to
+\begin{equation}
+\label{eq:theta}
+\tan2\theta=\frac{\sum_{\mathbf{r}}\left(D_2S_1-D_1S_2\right)}{\sum_{\mathbf{r}}\left(D_1S_1+D_2S_2\right)},
+\end{equation}
+where the quadrant of $2\theta$ is set by the signs of the numerator and the denominator.
+The angle $\theta$ is defined modulo $180^\circ$ and is the polarizer angle that transmits the $x'$ component.
+Whether a rotation is sufficient can be tested with the same data: the third components of $\mathbf{a}_1$ and $\mathbf{a}_2$ vanish for a rotation.
+
+\paragraph{Number of images.}
+Equation~\eqref{eq:lsq} uses every pixel of a speckle pattern, so one SLM pattern is sufficient.
+Three images are also sufficient, since $D_2=2I_{45^\circ}-I_{0^\circ}-I_{90^\circ}$.
+With two images, at $0^\circ$ and $45^\circ$, each image is fitted to $\tfrac{g}{2}(S_0+\mathbf{R}_i\cdot\mathbf{s})$ with $S_0$ taken from the model.
+For a rotation of the axes, a single image suffices in the same way.
+The four-image differences are preferable in practice, because they cancel $S_0$ and any polarization-independent background.
+
+\paragraph{Simulation.}
+We tested these relations with the forward model and the fast ADMM retrieval of the Methods on a scaled-down fiber.
+The fiber has $a=8\,\mu$m, which gives $M=156$ modes, and the optics are otherwise those of the experiment.
+For each of 20 random TMs, we retrieved the TM from $3M$ polarization-summed, dual-plane intensity patterns.
+The retrieved TMs reproduced held-out intensities with a PCC above $0.9999$.
+In every case, the true and predicted fields were related by Eq.~\eqref{eq:frame}, with a relative residual below $10^{-10}$ and a unitary $U$.
+The matrix $U$ was not a rotation: the ellipticity angle of the $x'$ state had a median magnitude of $17^\circ$ and ranged from $2^\circ$ to $36^\circ$.
+
+We then simulated polarizer images of one random SLM pattern with additive noise of $5\%$ of the mean intensity.
+We define the frame error as half the angle, on the Poincar\'e sphere, between the estimated and the true frame.
+For a rotation of the axes, this error equals the error of $\theta$.
+The frame error of Eqs.~\eqref{eq:lsq}--\eqref{eq:jones} was $0.06^\circ$ with four images and $0.08^\circ$ with three or two images [Fig.~\ref{fig:polframe}(d)].
+
+To test the separation of two foci, we optimized an SLM pattern for an $x'$-polarized focus A and a $y'$-polarized focus B.
+The objective of Section~\ref{sec:slm} was complemented by a penalty on the cross-polarized intensity inside each focus window.
+We then computed the fraction of each focus power that a rotating polarizer transmits, using the true field.
+With the TM as retrieved, the two fractions differed by at most $0.83$ (median over the 20 fibers; range $0.31$ to $1.00$).
+The best polarizer angle agreed with the predicted azimuth $\hat{\psi}$ within $0.7^\circ$ [Fig.~\ref{fig:polframe}(b)].
+After replacing $T$ by $D(\hat{U})\,T$, foci designed along the laboratory axes were separated by $0.999$ at $0^\circ$ and at $90^\circ$ [Fig.~\ref{fig:polframe}(c)].
+
+As a control, we constructed TMs whose frame differs from the laboratory frame by a rotation only.
+Equation~\eqref{eq:theta} recovered $\theta$ with a mean error of $0.02^\circ$ from four images, $0.03^\circ$ from two, and $0.05^\circ$ from one.
+The polarizer angle of best separation agreed with $\hat{\theta}$ within $0.8^\circ$, and the separation at $\hat{\theta}$ was $0.999$ [Fig.~\ref{fig:polframe}(a)].
+Without the cross-polarization penalty, the best polarizer angle deviated from $\theta$ by $2.7^\circ$ on average.
+The reason is a residual cross-polarized field at each focus, which tilts its polarization.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.92\textwidth]{figures/polarization_frame_simulation.png}
+\caption{\textbf{Simulated determination of the polarization frame} (fiber with $M=350$ modes; noise of $5\%$ in the polarizer images). (a)--(c) Fraction of the power of two foci, A and B, transmitted by a polarizer, versus polarizer angle. (a) The frame of the TM differs from the laboratory frame by a rotation; dashed lines mark $\hat{\theta}$ of Eq.~\eqref{eq:theta} and $\hat{\theta}+90^\circ$. (b) TM as retrieved; dashed lines mark the predicted azimuth $\hat{\psi}$ and $\hat{\psi}+90^\circ$, and the dotted line marks the angle that Eq.~\eqref{eq:theta} returns. (c) After the correction $T\to D(\hat{U})\,T$, with foci designed along the laboratory axes. (d) Frame error versus camera noise for different numbers of polarizer images (mean over 20 fibers with $M=156$ and ten SLM patterns each).}
+\label{fig:polframe}
+\end{figure}
+
+\paragraph{Experiment.}
+\note{to be added: polarizer images at $0^\circ$, $45^\circ$, $90^\circ$, and $135^\circ$ of one SLM pattern, the resulting $\hat{U}$ or $\hat{\theta}$, and the separation of the two foci before and after the correction. In the existing polarizer frames of Fig.~3 the polarizer shifts the image by about 4 pixels, so the four images must be registered before they are subtracted}
+
+\bibliography{references}
+\end{document}

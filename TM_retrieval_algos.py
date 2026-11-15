@@ -331,6 +331,8 @@ def optimize_tm_admm_dual_plane(
     init_eig_rel_threshold: float = 1e-3,
     planes: str = 'both',
     on_epoch_end: Optional[Callable[[int, float, 'TMMeasurementSystem'], None]] = None,
+    lambda_decay_interval: int = 15,
+    lambda_decay_factor: float = 0.8,
 ) -> Dict:
     """
     ADMM dual-plane TM retrieval: alternates an analytic TM update with
@@ -380,6 +382,9 @@ def optimize_tm_admm_dual_plane(
         planes: Which measurement planes to optimize against ('image', 'fourier',
             or 'both'; index 0 = image, 1 = Fourier in ``train_intensity_targets``).
         on_epoch_end: Optional ``on_epoch_end(epoch, epoch_seconds, tm_system)``.
+        lambda_decay_interval: Every this many epochs the dual-update coefficient is
+            multiplied by ``lambda_decay_factor``.
+        lambda_decay_factor: Multiplicative decay of the dual-update coefficient.
 
     Returns:
         history with ``epoch_losses`` (weighted mean dual-plane intensity MSE)
@@ -534,8 +539,6 @@ def optimize_tm_admm_dual_plane(
         online_init_seconds = time.perf_counter() - online_start_time
 
         lambda_coeff = 1.0
-        lambda_decay_interval = 15
-        lambda_decay_factor = 0.9
         history['admm_relaxation_schedule'] = []
 
         for epoch in range(num_epochs):

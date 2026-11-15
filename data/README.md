@@ -1,6 +1,6 @@
 # Measurement data
 
-The repository ships pointers only. The two published H5 files (~1.3 GB together) live on Zenodo once a DOI is minted. Until `data/download_data.py` has a real `ZENODO_RECORD_URL`, copy them into this directory by hand.
+The repository ships pointers only. The two published H5 files (~1.4 GB together) are on Zenodo: https://doi.org/10.5281/zenodo.24243174. `data/download_data.py` downloads them and verifies their sha256.
 
 | File | Size | sha256 |
 |---|---|---|
@@ -8,7 +8,7 @@ The repository ships pointers only. The two published H5 files (~1.3 GB together
 | `measurement_raf.h5` | 404 550 496 B | `0ab85ff053df6139c524cb12308fd32d372f8d55fa4bbbc38aa797f636c48e4b` |
 
 ```bash
-python data/download_data.py          # after the Zenodo URL is filled in
+python data/download_data.py          # download and verify
 python data/download_data.py --force  # redownload even if present
 ```
 

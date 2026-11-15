@@ -1,0 +1,45 @@
+{
+  "upload_type": "software",
+  "title": "TM_aquisition: code for reference-less 3D vectorial transmission-matrix retrieval in multimode fibers",
+  "description": "Code accompanying the manuscript \"Breaking the Phase-Ambiguity Limit: Reference-less 3D Vectorial Transmission-Matrix Retrieval in Multimode Fibers\". It retrieves the transmission matrix of a multimode fiber in its guided-mode basis from intensity-only measurements, without a reference beam. It includes the forward model, the joint fit and fast ADMM retrieval, the RAF21 and ADMM pixel-basis baselines, lab replay scripts and the figure scripts. The measurement data are at https://doi.org/10.5281/zenodo.24243174.",
+  "creators": [
+    {
+      "name": "Marsh, Dvir",
+      "affiliation": "Andrew and Erna Viterbi Department of Electrical & Computer Engineering, Technion, Haifa 3200003, Israel"
+    },
+    {
+      "name": "Fridman, Lior",
+      "affiliation": "Andrew and Erna Viterbi Department of Electrical & Computer Engineering, Technion, Haifa 3200003, Israel"
+    },
+    {
+      "name": "Mannor, Shie",
+      "affiliation": "Andrew and Erna Viterbi Department of Electrical & Computer Engineering, Technion, Haifa 3200003, Israel"
+    },
+    {
+      "name": "Bartal, Guy",
+      "affiliation": "Andrew and Erna Viterbi Department of Electrical & Computer Engineering, Technion, Haifa 3200003, Israel"
+    }
+  ],
+  "keywords": [
+    "multimode fiber",
+    "transmission matrix",
+    "phase retrieval",
+    "reference-less",
+    "wavefront shaping",
+    "vectorial field control"
+  ],
+  "communities": [
+    {
+      "identifier": "technion"
+    }
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.24243174",
+      "relation": "isSupplementTo",
+      "resource_type": "dataset",
+      "scheme": "doi"
+    }
+  ],
+  "language": "eng"
+}

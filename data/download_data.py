@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ZENODO_RECORD_URL = "TODO: fill in after upload"
+ZENODO_RECORD_URL = "https://zenodo.org/api/records/24243174"  # DOI 10.5281/zenodo.24243174
 
 DATA_DIR = Path(__file__).resolve().parent
 MANIFEST_PATH = DATA_DIR / "manifest.json"
@@ -99,7 +99,7 @@ def main() -> int:
                 print(f"{name}: already present and sha256 matches.")
                 continue
             print(f"{name}: present but sha256 mismatch; re-downloading.")
-        url = ZENODO_RECORD_URL.rstrip("/") + "/files/" + name
+        url = ZENODO_RECORD_URL.rstrip("/") + "/files/" + name + "/content"
         try:
             _download(url, dest)
         except urllib.error.URLError as exc:

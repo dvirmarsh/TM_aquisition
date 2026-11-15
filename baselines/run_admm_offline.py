@@ -33,6 +33,7 @@ from motor_pos_utils import (
     mask_run_label,
     sample_random_subset_indices,
 )
+from metrics_losses import PBR_DEFINITION
 from run_raf_offline import (
     RafSlmMaskWriter,
     _subset_sizes_for_n_slm_pixels,
@@ -58,6 +59,7 @@ class OfflineAdmmConfig:
     admm_mu: float = 5.0
     admm_rho: float = 4.0
     admm_npower_iter: int = 30
+    admm_init_keep_ratio: float = 5.0 / 6.0
     admm_ridge: float = 1e-6
     slm_opt_iters: int = 150
     slm_opt_lr: float = 0.1
@@ -98,6 +100,7 @@ def run_offline(cfg: OfflineAdmmConfig) -> Dict:
         raise ValueError(f"Need at least {max_subset} samples, got {n_samples} (available {n_available})")
 
     summary: Dict = {
+        "focus_metric_definition": PBR_DEFINITION,
         "subset_runs": {},
         "num_random_trials": cfg.num_random_trials,
         "offline": True,
@@ -133,6 +136,7 @@ def run_offline(cfg: OfflineAdmmConfig) -> Dict:
         rho=cfg.admm_rho,
         iters=cfg.admm_iters,
         npower_iter=cfg.admm_npower_iter,
+        init_keep_ratio=cfg.admm_init_keep_ratio,
         ridge=cfg.admm_ridge,
     )
     try:
@@ -173,7 +177,7 @@ def run_offline(cfg: OfflineAdmmConfig) -> Dict:
                     ls_losses_acc.append(float(ls_loss))
                     print(
                         f"[{run_label}] epoch {epoch + 1}/{cfg.admm_iters} | "
-                        f"time={epoch_seconds:.3f}s | ls_loss={ls_loss:.4f} | simulated_focus={focus_metric:.4f}"
+                        f"time={epoch_seconds:.3f}s | ls_loss={ls_loss:.4f} | simulated_PBR={focus_metric:.2f}"
                     )
 
                 _, history = admm_tm_epochs(
@@ -229,6 +233,7 @@ def main() -> None:
     parser.add_argument("--admm-mu", type=float, default=5.0)
     parser.add_argument("--admm-rho", type=float, default=4.0)
     parser.add_argument("--admm-npower-iter", type=int, default=30)
+    parser.add_argument("--admm-init-keep-ratio", type=float, default=5.0 / 6.0)
     parser.add_argument("--admm-ridge", type=float, default=1e-6)
     parser.add_argument("--slm-opt-iters", type=int, default=250)
     parser.add_argument("--slm-opt-lr", type=float, default=0.1)
@@ -262,6 +267,7 @@ def main() -> None:
     cfg.admm_mu = args.admm_mu
     cfg.admm_rho = args.admm_rho
     cfg.admm_npower_iter = args.admm_npower_iter
+    cfg.admm_init_keep_ratio = args.admm_init_keep_ratio
     cfg.admm_ridge = args.admm_ridge
     cfg.slm_opt_iters = args.slm_opt_iters
     cfg.slm_opt_lr = args.slm_opt_lr
