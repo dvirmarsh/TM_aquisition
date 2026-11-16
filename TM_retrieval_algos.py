@@ -203,6 +203,12 @@ def optimize_tm_slm(
     
     # --- 2. Setup Optimizer with 3 learning rates ---
     tm_params = [tm_system._optimized_tm_param]
+    # Optional camera weight of the Fourier-plane camera
+    # (TMMeasurementSystem.enable_learnable_fourier_weights); fitted with the TM.
+    fourier_weight_beta = getattr(tm_system, "fourier_weight_beta", None)
+    if fourier_weight_beta is not None:
+        fourier_weight_beta.requires_grad_(True)
+        tm_params.append(fourier_weight_beta)
     
     # Physical: SLM amplitude + polarization angles
     physical_params = [tm_system.slm_complex_amplitude]

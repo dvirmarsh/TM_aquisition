@@ -1,0 +1,56 @@
+{
+ "started": "2026-11-15T13:13:09",
+ "dataset_time": "2026-11-15T10:43:15",
+ "first_run": "tm_focus_outputs\\polarizer_test_20261115_1201",
+ "x_angle_deg": 6.0,
+ "d_arm_for_the_extinction_analysis": -0.7,
+ "b_of_weighted_tm": 0.7010334730148315,
+ "freshness": {
+  "pcc_first_8": [
+   0.9457529184446525,
+   0.9481336824784751,
+   0.938808573304847,
+   0.9502916540444942,
+   0.9496030456483938,
+   0.9304153110856146,
+   0.9299401070890817,
+   0.9447302321587797
+  ],
+  "mean": 0.9422094405317922,
+  "minutes_since_dataset": 150.166640774409,
+  "time": "2026-11-15T13:13:25",
+  "diagnostics": {
+   "0": {
+    "mean_level": 24.249242782592773,
+    "mean_level_first_run": 24.13323974609375,
+    "shift_px": [
+     -9.62429435030888,
+     2.678458709374549
+    ],
+    "shift_first_run_px": [
+     -9.665963939525266,
+     2.6309661279807934
+    ],
+    "speckle_contrast_in_fit_region": 1.051873803138733,
+    "correlation_between_different_masks": 0.05789797332435088,
+    "saturated_pixels_per_frame": 0.0
+   },
+   "90": {
+    "mean_level": 89.81065368652344,
+    "mean_level_first_run": 88.67837524414062,
+    "shift_px": [
+     -2.718355582563111,
+     -9.447061544710817
+    ],
+    "shift_first_run_px": [
+     -2.7031967936695622,
+     -9.460126526149178
+    ],
+    "speckle_contrast_in_fit_region": 1.0607972145080566,
+    "correlation_between_different_masks": 0.0684461287296112,
+    "saturated_pixels_per_frame": 7.9375
+   }
+  }
+ },
+ "stopped": "only the freshness check was requested"
+}

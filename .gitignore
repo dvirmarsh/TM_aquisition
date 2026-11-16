@@ -29,3 +29,6 @@ __pycache__/
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+
+# --- lab handoff archives (contents are copied into lab/ and results/) ----
+handoff_to_repo_*.zip

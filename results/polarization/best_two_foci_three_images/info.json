@@ -1,0 +1,128 @@
+{
+ "pattern": "polarizer_followup_20261115_1342/two_foci_x6_lab_axes_U_from_foci_v2",
+ "what": "focus A along lab x (stage 6 deg), focus B along lab y (stage 96 deg); U from the foci calibration at stage 6 / 96 deg, weighted TM of 15 Nov 2026",
+ "targets_yx": {
+  "A": [
+   48,
+   56
+  ],
+  "B": [
+   80,
+   72
+  ]
+ },
+ "with_polarizer": {
+  "recorded": "2026-11-15T14:05:43",
+  "minutes_after_the_dataset": 202.4639861702919,
+  "exposure": 24.0,
+  "stage_angles_deg": {
+   "x": 6.0,
+   "y": 96.0
+  },
+  "pass_fraction_A_at_x": 0.9896507115135834,
+  "pass_fraction_B_at_x": 0.0,
+  "separation_raw": 0.9896507115135834,
+  "separation_before_arm": 0.9981973412394256,
+  "foci": {
+   "x": {
+    "A": {
+     "peak_yx": [
+      48,
+      56
+     ],
+     "window_power_3x3": 765.0,
+     "peak_count": 116.0,
+     "pbr": 602.6202841744243
+    },
+    "B": {
+     "peak_yx": [
+      78,
+      75
+     ],
+     "window_power_3x3": 16.0,
+     "peak_count": 3.0,
+     "pbr": 15.223259152907394
+    }
+   },
+   "y": {
+    "A": {
+     "peak_yx": [
+      45,
+      59
+     ],
+     "window_power_3x3": 38.0,
+     "peak_count": 4.0,
+     "pbr": 17.28408417308832
+    },
+    "B": {
+     "peak_yx": [
+      80,
+      72
+     ],
+     "window_power_3x3": 1617.0,
+     "peak_count": 242.0,
+     "pbr": 493.4473076923077
+    }
+   }
+  }
+ },
+ "note": "At exposure 24 the camera reads small powers 5 to 9 counts low per 3x3 window, so a blocked focus reads about zero.",
+ "png_full_scale_counts": 242.0,
+ "without_polarizer": {
+  "recorded": "2026-11-15T15:12:15",
+  "exposure": 24.0,
+  "saturated": false,
+  "largest_count_on_the_sensor": 260.0,
+  "foci": {
+   "A": {
+    "peak_yx": [
+     48,
+     56
+    ],
+    "window_power_3x3": 850.0,
+    "peak_count": 124.0,
+    "pbr": 111.50640318887287
+   },
+   "B": {
+    "peak_yx": [
+     80,
+     72
+    ],
+    "window_power_3x3": 1540.0,
+    "peak_count": 235.0,
+    "pbr": 224.45770651292673
+   }
+  },
+  "dark_level_outside_disk": 0.0,
+  "peak_shift_px": {
+   "A": [
+    0,
+    0
+   ],
+   "B": [
+    0,
+    0
+   ]
+  },
+  "power_ratio_to_polarizer_image": {
+   "A_no_polarizer_over_A_at_x": 1.1111111111111112,
+   "B_no_polarizer_over_B_at_y": 0.9523809523809523
+  },
+  "freshness": {
+   "pcc_8_masks": [
+    0.9540553869689977,
+    0.9465284044303901,
+    0.956904712803202,
+    0.9645308640575834,
+    0.9369595089113948,
+    0.9345932591508808,
+    0.9437739235976885,
+    0.9620648607451533
+   ],
+   "mean": 0.9499263650831613,
+   "mean_against_the_previous_mask": 0.06988553246136618,
+   "level_now_over_dataset": 1.0086311399936676,
+   "minutes_after_the_dataset": 268.990830775102
+  }
+ }
+}

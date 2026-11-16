@@ -22,6 +22,8 @@ Missing hardware must fail loudly. There are no stubs for `pypylon` or `create_r
 | `replay_modal_masks.py` | measured `results/lab_replay/modal_replay_epoch_table.csv` (and the Fourier-plane companion CSV) |
 | `replay_baseline_masks.py` | measured `results/lab_replay/raf21_lab_replay_epoch_table.csv` and `admm_lab_replay_epoch_table.csv` |
 
+Scripts for the rotating-polarizer tests of Supplementary Section S7 and for the PBR background check are in `polarization/`; see `polarization/README.md`.
+
 ## Optical setup (as used by the code)
 
 SLM modulating one polarization component, two cameras exposing simultaneously on the image and Fourier planes, 128×128 recorded frames, a 1 m MMF supporting M = 1508 modes at λ = 632.8 nm (`a = 25e-6`, `n1 = 1.457`, `NA = 0.22`). Camera serial numbers and exposure times are fields on `PipelineConfig` in `run_wavefront_control.py`.

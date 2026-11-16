@@ -1,0 +1,232 @@
+{
+ "files": [
+  {
+   "file": "im_image_1.png",
+   "plane": "image",
+   "modified": "2026-11-15T10:55:01",
+   "bytes": 6919,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 62,
+   "recovered_peak_count": 612,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    56,
+    60
+   ],
+   "background_mean_counts": 1.4644911817410167,
+   "background_zero_fraction": 0.5006130340469679,
+   "background_fraction_of_pixels_at_1_count": 0.2676600961991889,
+   "pbr_recomputed": 417.89258114374036,
+   "pbr_from_png_values_directly": 418.02721505962546
+  },
+  {
+   "file": "im_image_2.png",
+   "plane": "image",
+   "modified": "2026-11-02T11:37:19",
+   "bytes": 6945,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 82,
+   "recovered_peak_count": 1379,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    62,
+    67
+   ],
+   "background_mean_counts": 2.172309723663114,
+   "background_zero_fraction": 0.4774120531924927,
+   "background_fraction_of_pixels_at_1_count": 0.3006696218051495,
+   "pbr_recomputed": 634.808188251639,
+   "pbr_from_png_values_directly": 633.7662328184141
+  },
+  {
+   "file": "im_image_3.png",
+   "plane": "image",
+   "modified": "2026-11-02T11:37:23",
+   "bytes": 7807,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 73,
+   "recovered_peak_count": 1004,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    69,
+    63
+   ],
+   "background_mean_counts": 2.0544185607846837,
+   "background_zero_fraction": 0.4206356691502405,
+   "background_fraction_of_pixels_at_1_count": 0.28737149863246253,
+   "pbr_recomputed": 488.70274985080107,
+   "pbr_from_png_values_directly": 488.68350412776664
+  },
+  {
+   "file": "im_image_4.png",
+   "plane": "image",
+   "modified": "2026-11-02T11:37:26",
+   "bytes": 6940,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 80,
+   "recovered_peak_count": 1074,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    57,
+    64
+   ],
+   "background_mean_counts": 2.2900122606809394,
+   "background_zero_fraction": 0.4128076959351127,
+   "background_fraction_of_pixels_at_1_count": 0.27407337545977556,
+   "pbr_recomputed": 468.9931221943083,
+   "pbr_from_png_values_directly": 469.02340767266116
+  },
+  {
+   "file": "im_image_5.png",
+   "plane": "image",
+   "modified": "2026-11-02T11:37:30",
+   "bytes": 6505,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 79,
+   "recovered_peak_count": 1285,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    65,
+    64
+   ],
+   "background_mean_counts": 2.0148071300575308,
+   "background_zero_fraction": 0.4808073186833915,
+   "background_fraction_of_pixels_at_1_count": 0.28878619258700367,
+   "pbr_recomputed": 637.7781678603193,
+   "pbr_from_png_values_directly": 637.6989147227049
+  },
+  {
+   "file": "im_fourier_1.png",
+   "plane": "fourier",
+   "modified": "2026-11-15T10:55:18",
+   "bytes": 5697,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 70,
+   "recovered_peak_count": 762,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    55,
+    67
+   ],
+   "background_mean_counts": 1.2294633594265774,
+   "background_zero_fraction": 0.6288786192587004,
+   "background_fraction_of_pixels_at_1_count": 0.20984626992360653,
+   "pbr_recomputed": 619.782602025161,
+   "pbr_from_png_values_directly": 619.7105674202356
+  },
+  {
+   "file": "im_fourier_2.png",
+   "plane": "fourier",
+   "modified": "2026-11-02T11:37:50",
+   "bytes": 6031,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 65,
+   "recovered_peak_count": 799,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    63,
+    63
+   ],
+   "background_mean_counts": 1.381307177213996,
+   "background_zero_fraction": 0.5584268603225502,
+   "background_fraction_of_pixels_at_1_count": 0.24606243515986043,
+   "pbr_recomputed": 578.4375938822888,
+   "pbr_from_png_values_directly": 578.4504347275813
+  },
+  {
+   "file": "im_fourier_3.png",
+   "plane": "fourier",
+   "modified": "2026-11-02T11:37:54",
+   "bytes": 5911,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 60,
+   "recovered_peak_count": 831,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    58,
+    63
+   ],
+   "background_mean_counts": 1.3158540035838913,
+   "background_zero_fraction": 0.5893615014618504,
+   "background_fraction_of_pixels_at_1_count": 0.2255022163538621,
+   "pbr_recomputed": 631.5290280963303,
+   "pbr_from_png_values_directly": 631.1068716852989
+  },
+  {
+   "file": "im_fourier_4.png",
+   "plane": "fourier",
+   "modified": "2026-11-02T11:37:57",
+   "bytes": 6906,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 66,
+   "recovered_peak_count": 738,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    66,
+    68
+   ],
+   "background_mean_counts": 1.5233424502499293,
+   "background_zero_fraction": 0.5273979062529472,
+   "background_fraction_of_pixels_at_1_count": 0.24870319720833725,
+   "pbr_recomputed": 484.4609955423477,
+   "pbr_from_png_values_directly": 484.16807331776835
+  },
+  {
+   "file": "im_fourier_5.png",
+   "plane": "fourier",
+   "modified": "2026-11-02T11:38:01",
+   "bytes": 6098,
+   "png_dtype": "uint16",
+   "png_max": 65520.0,
+   "distinct_png_values": 73,
+   "recovered_peak_count": 1227,
+   "smallest_nonzero_recovered_count": 1.0,
+   "peak_yx": [
+    71,
+    58
+   ],
+   "background_mean_counts": 1.6146373667829859,
+   "background_zero_fraction": 0.5978496651890974,
+   "background_fraction_of_pixels_at_1_count": 0.2172026784872206,
+   "pbr_recomputed": 759.9229556074766,
+   "pbr_from_png_values_directly": 760.5493141236876
+  }
+ ],
+ "run_summary_15Nov": {
+  "image": [
+   {
+    "target_pixel_yx": [
+     56,
+     60
+    ],
+    "measured_pbr": 417.89258114374036,
+    "pbr_peak_yx": [
+     56,
+     60
+    ]
+   }
+  ],
+  "fourier": [
+   {
+    "target_pixel_yx": [
+     55,
+     67
+    ],
+    "measured_pbr": 619.782602025161,
+    "pbr_peak_yx": [
+     55,
+     67
+    ]
+   }
+  ]
+ }
+}

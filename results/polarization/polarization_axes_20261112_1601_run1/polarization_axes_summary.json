@@ -1,0 +1,292 @@
+{
+  "config": {
+    "polarizer_x_angle_deg": 0.0,
+    "frame_angles_deg": [
+      0.0,
+      45.0,
+      90.0,
+      135.0
+    ],
+    "verify_angles_deg": [
+      0.0,
+      90.0
+    ],
+    "n_speckle_patterns": 4,
+    "speckle_exposure": 0.0,
+    "random_seed": 0,
+    "max_shift_px": 12.0,
+    "fit_aberrations": true,
+    "n_zernike": 3,
+    "aberration_min_gain": 0.01,
+    "compensate_aberration_in_design": true,
+    "target_x_pol_yx": null,
+    "target_y_pol_yx": null,
+    "window_half_width": 1,
+    "slm_opt_iters": 150,
+    "slm_opt_lr": 0.1,
+    "cross_pol_penalty": true,
+    "foci_exposure": 24.0,
+    "also_uncorrected": true,
+    "checkpoint_path": "",
+    "output_subdir": "polarization_axes"
+  },
+  "pupil_radius_fft_px": 19.142920353982298,
+  "frame": {
+    "U": {
+      "real": [
+        [
+          0.42761734877498614,
+          -0.7323274468418511
+        ],
+        [
+          0.7323274468418511,
+          0.42761734877498614
+        ]
+      ],
+      "imag": [
+        [
+          0.5299338455919314,
+          0.003167479265173718
+        ],
+        [
+          0.003167479265173718,
+          -0.5299338455919314
+        ]
+      ]
+    },
+    "R": [
+      [
+        -0.07262704464559849,
+        -0.6229547335716814,
+        -0.7788791384461918
+      ],
+      [
+        0.6296689514429865,
+        -0.634266740203513,
+        0.44857854814993064
+      ],
+      [
+        -0.7734612621034985,
+        -0.4578570761626876,
+        0.4383201727425044
+      ]
+    ],
+    "gain": 1.3441402371167367e-07,
+    "explained_fraction": 0.01824962367644034,
+    "singular_values": [
+      1.948250145474485e-07,
+      7.400303287589885e-08
+    ],
+    "xprime_azimuth_deg": 48.28975712460919,
+    "xprime_ellipticity_deg": -25.332866414178504,
+    "rotation_only_angle_deg": 59.71868190628569,
+    "out_of_plane": 0.898818906213583,
+    "separation_without_correction": 0.6338435737824151,
+    "frame_angles_deg": [
+      0.0,
+      45.0,
+      90.0,
+      135.0
+    ],
+    "shifts_px": [
+      [
+        0.26825278014022846,
+        -0.2526404991737177
+      ],
+      [
+        0.12676078412125816,
+        -0.26686072554671475
+      ],
+      [
+        0.013937510597088143,
+        -0.3383308714826935
+      ],
+      [
+        -0.11649028783191005,
+        -0.5110933179206567
+      ]
+    ],
+    "pcc_per_angle": [
+      0.28330937027931213,
+      0.7237063646316528,
+      0.7523297071456909,
+      0.31859642267227173
+    ],
+    "pcc_per_angle_without_aberration_fit": [
+      0.28330937027931213,
+      0.7237063646316528,
+      0.7523297071456909,
+      0.31859642267227173
+    ],
+    "aberration_fit_used": false,
+    "aberration_coeffs_rad": null,
+    "aberration_fit_candidate": {
+      "coeffs_rad": [
+        0.09369134902954102,
+        -0.006361980922520161,
+        -0.0028658313676714897
+      ],
+      "pcc_per_angle": [
+        0.28266555070877075,
+        0.7274681329727173,
+        0.7605600953102112,
+        0.324495792388916
+      ]
+    },
+    "speckle_exposure": 540.0
+  },
+  "two_foci": {
+    "target_A_x_pol_yx": [
+      48,
+      56
+    ],
+    "target_B_y_pol_yx": [
+      80,
+      72
+    ],
+    "tm_axes_uncorrected": {
+      "predicted": {
+        "transmitted_fraction_A_at_x": 0.46426472067832947,
+        "transmitted_fraction_B_at_x": 0.5310381054878235,
+        "separation": -0.06677338480949402
+      },
+      "measured": {
+        "angles_deg": [
+          0.0,
+          90.0
+        ],
+        "dark_level": [
+          0.0,
+          0.0
+        ],
+        "A": {
+          "peak_yx": [
+            48,
+            56
+          ],
+          "window_power": [
+            510.0625,
+            503.34375
+          ],
+          "pbr_behind_polarizer": [
+            338.73446158774226,
+            351.8331347551531
+          ]
+        },
+        "B": {
+          "peak_yx": [
+            80,
+            72
+          ],
+          "window_power": [
+            128.828125,
+            131.78125
+          ],
+          "pbr_behind_polarizer": [
+            76.97522766350379,
+            78.48210896576157
+          ]
+        },
+        "transmitted_fraction_A_at_x": 0.5033149341638656,
+        "transmitted_fraction_B_at_x": 0.4943341926974039,
+        "separation": 0.008980741466461717,
+        "leak_B_over_A_at_x": 0.2525732140669036,
+        "leak_A_over_B_at_y": 3.819539957315627
+      },
+      "exposure": 24.0,
+      "saturated": false,
+      "frame_shifts_px": {
+        "0": [
+          0.26825278014022846,
+          -0.2526404991737177
+        ],
+        "90": [
+          0.013937510597088143,
+          -0.3383308714826935
+        ]
+      },
+      "frame_shifts_from_foci_px": {
+        "0": [
+          0.11476765991289076,
+          -0.15943194401987765
+        ],
+        "90": [
+          0.20262212318017717,
+          -0.18687061942455652
+        ]
+      }
+    },
+    "lab_axes": {
+      "predicted": {
+        "transmitted_fraction_A_at_x": 0.9998912215232849,
+        "transmitted_fraction_B_at_x": 2.7616573788691312e-05,
+        "separation": 0.9998636049494962
+      },
+      "measured": {
+        "angles_deg": [
+          0.0,
+          90.0
+        ],
+        "dark_level": [
+          0.0,
+          0.0
+        ],
+        "A": {
+          "peak_yx": [
+            48,
+            56
+          ],
+          "window_power": [
+            10.6875,
+            12.34375
+          ],
+          "pbr_behind_polarizer": [
+            10.390457420977558,
+            14.198358434683975
+          ]
+        },
+        "B": {
+          "peak_yx": [
+            80,
+            72
+          ],
+          "window_power": [
+            444.6484375,
+            445.0
+          ],
+          "pbr_behind_polarizer": [
+            375.7245563152344,
+            428.1278233362213
+          ]
+        },
+        "transmitted_fraction_A_at_x": 0.46404341926729986,
+        "transmitted_fraction_B_at_x": 0.49980241492864985,
+        "separation": -0.03575899566134999,
+        "leak_B_over_A_at_x": 41.60453216374269,
+        "leak_A_over_B_at_y": 0.02773876404494382
+      },
+      "exposure": 24.0,
+      "saturated": false,
+      "frame_shifts_px": {
+        "0": [
+          0.26825278014022846,
+          -0.2526404991737177
+        ],
+        "90": [
+          0.013937510597088143,
+          -0.3383308714826935
+        ]
+      },
+      "frame_shifts_from_foci_px": {
+        "0": [
+          5.968559671464847,
+          -1.5131719305783993
+        ],
+        "90": [
+          0.045909325990563694,
+          -0.4481794726282294
+        ]
+      }
+    }
+  }
+}

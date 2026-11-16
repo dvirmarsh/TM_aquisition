@@ -1,0 +1,43 @@
+Diagnosis of the first hardware run of run_polarization_axes.py
+12 Nov 2026, about 16:00. Command: python run_polarization_axes.py --x-angle 0 --also-uncorrected
+Stage: KDC101 serial 27268833, homed before the run; lab x defined as stage angle 0.
+Image-plane camera: cameras[0], serial 40237702. TM checkpoint of 12:46 (frames acquired 12:34).
+
+Verdict: not good. The image on the image-plane camera does not respond to the stage angle.
+
+1. The frames do not change with the stage angle
+   PCC between stage angles, same SLM pattern, core pixels (mean of 4 patterns):
+              0      45     90     135
+       0    1.000  0.983  0.981  0.994
+      45    0.983  1.000  0.989  0.984
+      90    0.981  0.989  1.000  0.984
+     135    0.994  0.984  0.984  1.000
+   (PCC between different SLM patterns: 0.01.)
+   Signal (core mean minus dark), counts: 37.39, 37.97, 38.05, 37.44 at 0/45/90/135 deg (1% modulation).
+   Two-foci frames at 0 and 90 deg: PCC 0.977 (uncorrected) and 0.972 (lab_axes); predicted for lab_axes: -0.007.
+
+2. The signal equals the level of the TM acquisition
+   Same 4 probe masks (1627, 3082, 3840, 5128), same exposure 540:
+   TM acquisition 37.33 counts; this run 37.4-38.1 counts; ratio 1.00-1.02.
+   A linear polarizer added to this beam would remove about half of the light.
+
+3. The detection is polarization-selective, with a fixed state, already in the TM acquisition
+   Regression of the frames on the model Stokes images [1, S0, S1, S2, S3]; analyzer vector = c123 / c0
+   (length 0 = no polarizing element, 1 = ideal analyzer), in the TM's own polarization frame:
+     TM acquisition, 120 frames:         (+0.365, +0.072, +0.642), length 0.742, PCC 0.835 -> 0.901
+     TM acquisition, other 120 frames:   (+0.362, +0.080, +0.630), length 0.731, PCC 0.842 -> 0.904
+     this run, stage   0 deg:            (+0.317, +0.076, +0.534), length 0.626, PCC 0.742 -> 0.782
+     this run, stage  45 deg:            (+0.311, +0.081, +0.535), length 0.624, PCC 0.743 -> 0.783
+     this run, stage  90 deg:            (+0.312, +0.084, +0.551), length 0.638, PCC 0.738 -> 0.779
+     this run, stage 135 deg:            (+0.316, +0.074, +0.540), length 0.630, PCC 0.740 -> 0.781
+   The vector has the same direction at 12:34 and at 16:00 and does not turn with the stage.
+   Consistent with the foci: pure x' focus A and pure y' focus B came out 3.6:1 in peak (model 1.6:1);
+   in the lab_axes pattern, where each focus is a superposition of x' and y', focus A vanished
+   (window power 11 against 445 for B), which needs interference between x' and y' on the camera.
+
+4. Drift since the TM acquisition
+   PCC of the model total intensity with the TM-acquisition frames of the 4 masks: 0.82-0.87.
+   With the frames of this run: 0.69-0.76. This run against the TM-acquisition frames: 0.81-0.87.
+
+Not established: which optical element causes item 3, and why the stage has no effect
+(polarizer not in this beam, not turning with the mount, or an analyzer that is invariant under rotation).

@@ -1,0 +1,27 @@
+{
+ "class_of_checkpoint": "TM_retrieve.TMMeasurementSystem",
+ "calibrated_fast_path": false,
+ "state_dict_load": "<All keys matched successfully>",
+ "max_abs_diff_intensity_b0": 0.0,
+ "max_intensity": 108945304.0,
+ "max_abs_diff_field_b0": 0.0,
+ "image_plane_unchanged_by_weights": 0.0,
+ "weighted_fourier_rel_diff_to_manual": 1.8731883244527125e-07,
+ "held_out_current_checkpoint": {
+  "n_held_out": 302,
+  "image": {
+   "pcc_full_frame": 0.7921379208564758,
+   "pcc_full_frame_std_over_masks": 0.032979708164930344,
+   "pcc_in_support": 0.750404417514801,
+   "pcc_pooled_all_frames": 0.7924214601516724,
+   "pcc_pooled_amplitude": 0.8343321084976196
+  },
+  "fourier": {
+   "pcc_full_frame": 0.8292090892791748,
+   "pcc_full_frame_std_over_masks": 0.027267158031463623,
+   "pcc_in_support": 0.76212078332901,
+   "pcc_pooled_all_frames": 0.8292964696884155,
+   "pcc_pooled_amplitude": 0.8859360814094543
+  }
+ }
+}

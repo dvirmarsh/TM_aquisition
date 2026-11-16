@@ -1,0 +1,52 @@
+{
+ "n_masks": 6032,
+ "fourier": {
+  "contrast_envelope_removed": 0.8213954769585846,
+  "contrast_raw": 0.9308230082483924,
+  "contrast_over_masks_per_pixel": 0.8220464868278857,
+  "mean_level_in_support": 426.55830547795847,
+  "saturated_pixel_fraction": 0.00013788129348587906,
+  "max_level": 4095.0,
+  "median_outside_support": 5.0,
+  "mean_level_first_500": 426.0666809082031,
+  "mean_level_last_500": 425.762451171875
+ },
+ "image": {
+  "contrast_envelope_removed": 0.745410413385329,
+  "contrast_raw": 0.7544740895577113,
+  "contrast_over_masks_per_pixel": 0.7461959641766271,
+  "mean_level_in_support": 272.90332103014356,
+  "saturated_pixel_fraction": 0.0,
+  "max_level": 3396.0,
+  "median_outside_support": 0.0,
+  "mean_level_first_500": 272.2442932128906,
+  "mean_level_last_500": 272.5836181640625
+ },
+ "blind_tm": {
+  "class_of_checkpoint": "TM_retrieve.TMMeasurementSystem",
+  "calibrated_fast_path": false,
+  "state_dict_load": "<All keys matched successfully>",
+  "max_abs_diff_intensity_b0": 0.0,
+  "max_intensity": 76881768.0,
+  "max_abs_diff_field_b0": 0.0,
+  "image_plane_unchanged_by_weights": 0.0,
+  "weighted_fourier_rel_diff_to_manual": 2.8743727398250485e-07,
+  "held_out_current_checkpoint": {
+   "n_held_out": 302,
+   "image": {
+    "pcc_full_frame": 0.9130544066429138,
+    "pcc_full_frame_std_over_masks": 0.006118412129580975,
+    "pcc_in_support": 0.8687757253646851,
+    "pcc_pooled_all_frames": 0.912936270236969,
+    "pcc_pooled_amplitude": 0.9523255228996277
+   },
+   "fourier": {
+    "pcc_full_frame": 0.9292435050010681,
+    "pcc_full_frame_std_over_masks": 0.005690120626240969,
+    "pcc_in_support": 0.9037150144577026,
+    "pcc_pooled_all_frames": 0.9292381405830383,
+    "pcc_pooled_amplitude": 0.9481215476989746
+   }
+  }
+ }
+}

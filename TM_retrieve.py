@@ -3,7 +3,18 @@ Transmission Matrix Retrieval System
 
 This module implements a complete system for retrieving transmission matrices (TMs)
 from intensity measurements using optimization methods.
+
+Camera weight (optional). A beam splitter between the two cameras can transmit and reflect
+the two polarization components in different ratios. Intensity data fix only the weights
+of one camera relative to the other, so the image-plane camera keeps |E_x|^2 + |E_y|^2
+and the Fourier-plane camera records (1 + b)|E_x|^2 + (1 - b)|E_y|^2. Set a fixed value
+with ``tm_system.fourier_pol_weights = (1 + b, 1 - b)`` or fit b together with the TM
+after ``tm_system.enable_learnable_fourier_weights(b_init)``. The default, b = 0, is the
+polarization-summed model used for all results of the paper except the test of the
+polarization axes (Supplementary Section S7).
 """
+
+import math
 
 import numpy as np
 import torch
@@ -75,6 +86,9 @@ class TMMeasurementSystem(nn.Module):
         self.fiber_params = fiber_params
         self.grid_params = grid_params
         self.lab_data = lab_data
+        # (w_x, w_y) of the Fourier-plane camera relative to the image-plane camera.
+        # (1, 1) is the polarization-summed model; see the module docstring.
+        self.fourier_pol_weights = (1.0, 1.0)
         if dx is None:
             dx = {
                 'im': 1.0,
@@ -733,6 +747,36 @@ class TMMeasurementSystem(nn.Module):
         )
         return self.input_modes_to_output_modes(input_mode_dist, tm=tm)
 
+    def enable_learnable_fourier_weights(self, b_init: float = 0.0) -> None:
+        """
+        Make the Fourier-camera weights (1 + b, 1 - b) trainable.
+
+        b = tanh(beta) keeps the weights positive; beta starts at atanh(b_init). The sign of b
+        only selects which polarization component is labelled x. ``optimize_tm_slm`` fits beta
+        with the learning rate of the TM. The fast ADMM does not use the weights.
+        """
+        b_init = float(min(max(float(b_init), -0.999), 0.999))
+        self.fourier_weight_beta = nn.Parameter(
+            torch.tensor(math.atanh(b_init), dtype=torch.float32, device=self.device)
+        )
+
+    def fourier_weight_b(self) -> float:
+        """Current b of the Fourier-camera weights (1 + b, 1 - b)."""
+        beta = getattr(self, "fourier_weight_beta", None)
+        if beta is not None:
+            return float(torch.tanh(beta.detach()))
+        w_x, w_y = getattr(self, "fourier_pol_weights", (1.0, 1.0))
+        return (float(w_x) - float(w_y)) / (float(w_x) + float(w_y))
+
+    def _fourier_plane_intensity(self, E_x: torch.Tensor, E_y: torch.Tensor) -> torch.Tensor:
+        """Fourier-plane camera intensity w_x |E_x|^2 + w_y |E_y|^2; (1, 1) by default."""
+        beta = getattr(self, "fourier_weight_beta", None)
+        if beta is not None:
+            b = torch.tanh(beta)
+            return (1.0 + b) * E_x.abs() ** 2 + (1.0 - b) * E_y.abs() ** 2
+        w_x, w_y = getattr(self, "fourier_pol_weights", (1.0, 1.0))
+        return w_x * E_x.abs() ** 2 + w_y * E_y.abs() ** 2
+
     def output_modes_to_intensities(
         self,
         output_mode_dist: torch.Tensor,
@@ -783,7 +827,7 @@ class TMMeasurementSystem(nn.Module):
             # Fourier-plane field before Fourier-domain Zernike  (for I_fourier)
             efp_x = torch.matmul(self._cal_fourier_pre_x, output_mode_dist)  # (H*W, batch)
             efp_y = torch.matmul(self._cal_fourier_pre_y, output_mode_dist)
-            I_fourier = (efp_x.abs()**2 + efp_y.abs()**2).T.reshape(batch_size, H, W)
+            I_fourier = self._fourier_plane_intensity(efp_x, efp_y).T.reshape(batch_size, H, W)
 
             # Final image-plane field  (for I_image)
             ei_x = torch.matmul(self._cal_image_x, output_mode_dist)         # (H*W, batch)
@@ -836,7 +880,7 @@ class TMMeasurementSystem(nn.Module):
         E_output = output_fields_image[:, 0, :, :, :]
         E_output = self.zernike_layer(E_output, zernike_coeffs_image_plane)
         E_fourier = self.zoomfft['tran'](E_output, inverse=False, **zoomfft_params_output_forward) * self.mult_factor['tran']
-        I_fourier = torch.abs(E_fourier[:, 0])**2 + torch.abs(E_fourier[:, 1])**2
+        I_fourier = self._fourier_plane_intensity(E_fourier[:, 0], E_fourier[:, 1])
         E_fourier = self.zernike_layer(E_fourier, zernike_coeffs_fourier_domain)
         E_image = self.zoomfft['tran'](E_fourier, inverse=True, **zoomfft_params_output_inverse) / self.mult_factor['tran']
         I_image = torch.abs(E_image[:, 0])**2 + torch.abs(E_image[:, 1])**2

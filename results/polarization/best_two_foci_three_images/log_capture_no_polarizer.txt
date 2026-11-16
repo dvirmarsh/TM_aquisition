@@ -1,0 +1,12 @@
+0
+Blink SDK was successfully constructed
+Camera 40237702: PixelFormat -> Mono12, ExposureTime -> 540.000
+Camera 40238131: PixelFormat -> Mono12, ExposureTime -> 675.000
+Probe frames without polarizer against the dataset frames: mean correlation 0.950 (previous mask: 0.070); level now / dataset 1.01; 269 min after the dataset
+Image without polarizer: exposure 24, largest count on the sensor 260, saturated: False
+  focus A: 850 counts (3x3) at [48, 56], peak 124, PBR 112; shift against the polarizer image [0, 0] px
+  focus B: 1540 counts (3x3) at [80, 72], peak 235, PBR 224; shift against the polarizer image [0, 0] px
+  power without polarizer / power behind the polarizer: A 1.11, B 0.95
+All three images are in <lab>\TM_lib\tm_focus_outputs\best_two_foci_three_images
+Camera 40237702: PixelFormat -> Mono8, ExposureTime -> 19.000 (min)
+Camera 40238131: PixelFormat -> Mono8, ExposureTime -> 19.000 (min)

@@ -1,0 +1,2113 @@
+{
+ "started": "2026-11-15T13:42:20",
+ "dataset_time": "2026-11-15T10:43:15",
+ "first_run": "tm_focus_outputs\\polarizer_test_20261115_1201",
+ "x_angle_deg": 6.0,
+ "d_arm_for_the_extinction_analysis": -0.7,
+ "b_of_weighted_tm": 0.7010334730148315,
+ "exposures": [
+  24.0,
+  192.0,
+  768.0
+ ],
+ "frame_guard": "one warm-up frame after every change of stage angle, SLM pattern or exposure",
+ "freshness_start": {
+  "pcc_first_8": [
+   0.9536105029343385,
+   0.9521142865705727,
+   0.9508199713851402,
+   0.9569212192176602,
+   0.955401497981301,
+   0.9421398372335479,
+   0.9518070144670111,
+   0.9484960257554415
+  ],
+  "mean": 0.9514137944431266,
+  "mean_against_the_previous_mask": 0.04297300228935342,
+  "minutes_since_dataset": 179.37038180033366,
+  "time": "2026-11-15T13:42:38",
+  "per_angle": {
+   "0": {
+    "mean_level": 24.178863525390625,
+    "mean_level_first_run": 24.13323974609375,
+    "shift_px": [
+     -9.646926679280671,
+     2.6741333624406423
+    ],
+    "shift_first_run_px": [
+     -9.665963939525266,
+     2.6309661279807934
+    ],
+    "correlation_between_different_masks": 0.055268773061510235
+   },
+   "90": {
+    "mean_level": 89.53117370605469,
+    "mean_level_first_run": 88.67837524414062,
+    "shift_px": [
+     -2.7134508012530265,
+     -9.453523811142366
+    ],
+    "shift_first_run_px": [
+     -2.7031967936695622,
+     -9.460126526149178
+    ],
+    "correlation_between_different_masks": 0.06740929776498131
+   }
+  }
+ },
+ "warm_up_frames_so_far": 1450,
+ "displacement": {
+  "new_measurements_px": {
+   "0": [
+    -9.646926679280671,
+    2.6741333624406423
+   ],
+   "90": [
+    -2.7134508012530265,
+    -9.453523811142366
+   ],
+   "80": [
+    -4.27840333750939,
+    -8.879944723341548
+   ],
+   "96": [
+    -1.6989020462952884,
+    -9.693173286787527
+   ],
+   "110": [
+    0.7610500182977594,
+    -9.758828530974576
+   ],
+   "170": [
+    8.70157585433757,
+    -4.065696407325874
+   ],
+   "186": [
+    9.500387034880715,
+    -1.4582246184235235
+   ],
+   "200": [
+    9.624803926771143,
+    0.9066051374084977
+   ],
+   "350": [
+    -9.032713297081322,
+    4.250897328263165
+   ],
+   "6": [
+    -9.84789094840122,
+    1.65481466908269
+   ],
+   "20": [
+    -9.949277285795537,
+    -0.7937303558740567
+   ]
+  },
+  "new_minus_circle_of_first_run_px": {
+   "0": 0.06270725137015497,
+   "90": 0.025775339219268136,
+   "80": 0.0186540237629711,
+   "96": 0.029230523670080017,
+   "110": 0.05827703391332703,
+   "170": 0.027352796726552168,
+   "186": 0.05255668329718203,
+   "200": 0.11025961009454804,
+   "350": 0.06496733871571145,
+   "6": 0.06100699123302696,
+   "20": 0.011179823414972777
+  },
+  "circle_coefficients": [
+   [
+    -0.17220076053311512,
+    0.08716417717473056
+   ],
+   [
+    -9.477822547699304,
+    2.542917639263541
+   ],
+   [
+    -2.5183382732218327,
+    -9.543807781905008
+   ]
+  ],
+  "rms_residual_px": 0.03552168776783101,
+  "largest_residual_px": 0.06253694017894063,
+  "radius_px": 9.841794678870299
+ },
+ "extinction_pattern_a": {
+  "peaks_yx": {
+   "A": [
+    47,
+    56
+   ],
+   "B": [
+    80,
+    71
+   ]
+  },
+  "foci": {
+   "A": {
+    "extinction_angle_deg": 4.5288886122255505,
+    "up_deg": 4.502378880502519,
+    "down_deg": 4.555398343948582,
+    "down_minus_up_deg": 0.05301946344606279,
+    "up_down_agree": true,
+    "sigma_statistical_deg": 0.06233522042692443,
+    "spread_over_exposures_and_windows_deg": 0.4599802155038333,
+    "sigma_deg": 0.23975799307935194,
+    "exposure_used": [
+     768.0,
+     768.0
+    ],
+    "distance_to_scan_edge_deg": 14.502378880502519,
+    "minimum_over_maximum_of_fit": [
+     0.00039668260079445285,
+     0.00030740863288121907
+    ],
+    "extinction_range": "low",
+    "up": {
+     "extinction_angle_deg": 4.502378880502519,
+     "sigma_statistical_deg": 0.07382866193110312,
+     "spread_over_exposures_and_windows_deg": 0.4599802155038333,
+     "exposure_used": 768.0,
+     "distance_to_scan_edge_deg": 14.502378880502519,
+     "minimum_over_maximum_of_fit": 0.00039668260079445285,
+     "direction": "up",
+     "fits": {
+      "exposure_24_window_3": {
+       "extinction_angle_deg": 4.397838334974253,
+       "sigma_fit_deg": 0.12192015171699871,
+       "sigma_bootstrap_deg": 0.1545429449470568,
+       "minimum_over_maximum_of_fit": -0.0024457744087252563,
+       "rms_residual_over_amplitude": 0.00473877888934337,
+       "lowest_measured_power": 0.0,
+       "angle_of_lowest_measured_power_deg": 2.0,
+       "powers": [
+        104.0,
+        76.0,
+        63.0,
+        35.0,
+        16.0,
+        4.0,
+        0.0,
+        2.0,
+        1.0,
+        3.0,
+        6.0,
+        25.0,
+        44.0,
+        63.0,
+        98.0,
+        133.0
+       ]
+      },
+      "exposure_24_window_5": {
+       "extinction_angle_deg": 4.042398664998686,
+       "sigma_fit_deg": 0.11373432776223151,
+       "sigma_bootstrap_deg": 0.14317131052904428,
+       "minimum_over_maximum_of_fit": -0.0016056175765489598,
+       "rms_residual_over_amplitude": 0.004353492017629825,
+       "lowest_measured_power": 0.0,
+       "angle_of_lowest_measured_power_deg": 2.0,
+       "powers": [
+        148.0,
+        112.0,
+        88.0,
+        48.0,
+        22.0,
+        11.0,
+        0.0,
+        4.0,
+        3.0,
+        9.0,
+        16.0,
+        38.0,
+        79.0,
+        107.0,
+        151.0,
+        210.0
+       ]
+      },
+      "exposure_192_window_3": {
+       "extinction_angle_deg": 4.484066747933554,
+       "sigma_fit_deg": 0.05057725564363903,
+       "sigma_bootstrap_deg": 0.08243145765439168,
+       "minimum_over_maximum_of_fit": 0.00011962462021948813,
+       "rms_residual_over_amplitude": 0.0019711655666403228,
+       "lowest_measured_power": 0.5,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        116.875,
+        87.75,
+        65.0,
+        44.625,
+        26.25,
+        13.875,
+        5.0,
+        0.5,
+        1.375,
+        5.5,
+        15.625,
+        31.125,
+        51.625,
+        74.375,
+        107.0,
+        139.125
+       ]
+      },
+      "exposure_192_window_5": {
+       "extinction_angle_deg": 4.111400082129293,
+       "sigma_fit_deg": 0.05354104704811933,
+       "sigma_bootstrap_deg": 0.08645695374275292,
+       "minimum_over_maximum_of_fit": 0.0018312491868490539,
+       "rms_residual_over_amplitude": 0.0020565616166088796,
+       "lowest_measured_power": 6.625,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        178.625,
+        134.875,
+        101.25,
+        67.125,
+        42.25,
+        24.75,
+        11.375,
+        6.625,
+        8.5,
+        16.75,
+        32.5,
+        59.25,
+        91.375,
+        129.5,
+        181.875,
+        233.75
+       ]
+      },
+      "exposure_768_window_3": {
+       "extinction_angle_deg": 4.502378880502519,
+       "sigma_fit_deg": 0.048537373140882176,
+       "sigma_bootstrap_deg": 0.07382866193110312,
+       "minimum_over_maximum_of_fit": 0.00039668260079445285,
+       "rms_residual_over_amplitude": 0.0018926548507430586,
+       "lowest_measured_power": 1.34375,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        120.75,
+        90.4375,
+        66.25,
+        43.15625,
+        28.5,
+        15.40625,
+        5.9375,
+        1.34375,
+        1.59375,
+        6.5,
+        16.625,
+        33.09375,
+        52.34375,
+        75.71875,
+        106.65625,
+        143.59375
+       ]
+      },
+      "exposure_768_window_5": {
+       "extinction_angle_deg": 4.138853784255559,
+       "sigma_fit_deg": 0.05368171968611978,
+       "sigma_bootstrap_deg": 0.07897345205945762,
+       "minimum_over_maximum_of_fit": 0.0023839613491727896,
+       "rms_residual_over_amplitude": 0.0020646809885504986,
+       "lowest_measured_power": 8.1875,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        186.25,
+        139.78125,
+        103.375,
+        68.9375,
+        46.84375,
+        27.9375,
+        13.625,
+        8.1875,
+        9.0625,
+        19.125,
+        36.0625,
+        62.84375,
+        94.53125,
+        132.9375,
+        181.6875,
+        242.84375
+       ]
+      }
+     }
+    },
+    "down": {
+     "extinction_angle_deg": 4.555398343948582,
+     "sigma_statistical_deg": 0.10045918325447362,
+     "spread_over_exposures_and_windows_deg": 0.42326113659403575,
+     "exposure_used": 768.0,
+     "distance_to_scan_edge_deg": 14.555398343948582,
+     "minimum_over_maximum_of_fit": 0.00030740863288121907,
+     "direction": "down",
+     "fits": {
+      "exposure_24_window_3": {
+       "extinction_angle_deg": 4.512895904714142,
+       "sigma_fit_deg": 0.1136351709940376,
+       "sigma_bootstrap_deg": 0.1514959498194235,
+       "minimum_over_maximum_of_fit": -0.0030090474260885433,
+       "rms_residual_over_amplitude": 0.004432358337089451,
+       "lowest_measured_power": 0.0,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        110.0,
+        76.0,
+        53.0,
+        37.0,
+        19.0,
+        6.0,
+        2.0,
+        0.0,
+        0.0,
+        2.0,
+        5.0,
+        20.0,
+        37.0,
+        65.0,
+        98.0,
+        130.0
+       ]
+      },
+      "exposure_24_window_5": {
+       "extinction_angle_deg": 4.132137207354546,
+       "sigma_fit_deg": 0.14716521169183758,
+       "sigma_bootstrap_deg": 0.19572919743146727,
+       "minimum_over_maximum_of_fit": -0.0023986150319573367,
+       "rms_residual_over_amplitude": 0.005658396227200628,
+       "lowest_measured_power": 3.0,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        160.0,
+        106.0,
+        78.0,
+        51.0,
+        28.0,
+        11.0,
+        4.0,
+        3.0,
+        3.0,
+        6.0,
+        14.0,
+        34.0,
+        61.0,
+        103.0,
+        164.0,
+        211.0
+       ]
+      },
+      "exposure_192_window_3": {
+       "extinction_angle_deg": 4.54772787027855,
+       "sigma_fit_deg": 0.062435610640327405,
+       "sigma_bootstrap_deg": 0.1002422909147636,
+       "minimum_over_maximum_of_fit": 2.656348554131197e-05,
+       "rms_residual_over_amplitude": 0.00243756392304946,
+       "lowest_measured_power": 0.5,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        114.75,
+        87.625,
+        66.375,
+        44.0,
+        25.625,
+        14.75,
+        4.625,
+        0.5,
+        1.0,
+        4.625,
+        15.125,
+        29.875,
+        47.875,
+        75.875,
+        101.0,
+        137.625
+       ]
+      },
+      "exposure_192_window_5": {
+       "extinction_angle_deg": 4.186194770535565,
+       "sigma_fit_deg": 0.06156405002989603,
+       "sigma_bootstrap_deg": 0.0983249362687035,
+       "minimum_over_maximum_of_fit": 0.001329717003466324,
+       "rms_residual_over_amplitude": 0.0023730163256365255,
+       "lowest_measured_power": 5.5,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        177.625,
+        136.75,
+        102.5,
+        67.625,
+        40.5,
+        24.0,
+        9.75,
+        5.5,
+        6.75,
+        14.5,
+        32.25,
+        55.75,
+        85.875,
+        131.5,
+        173.875,
+        233.625
+       ]
+      },
+      "exposure_768_window_3": {
+       "extinction_angle_deg": 4.555398343948582,
+       "sigma_fit_deg": 0.06057227662566869,
+       "sigma_bootstrap_deg": 0.10045918325447362,
+       "minimum_over_maximum_of_fit": 0.00030740863288121907,
+       "rms_residual_over_amplitude": 0.002365277333525875,
+       "lowest_measured_power": 1.5,
+       "angle_of_lowest_measured_power_deg": 6.0,
+       "powers": [
+        119.3125,
+        90.21875,
+        69.03125,
+        45.0,
+        27.84375,
+        15.1875,
+        5.65625,
+        1.65625,
+        1.5,
+        5.8125,
+        16.0625,
+        30.46875,
+        48.96875,
+        77.3125,
+        107.5,
+        140.78125
+       ]
+      },
+      "exposure_768_window_5": {
+       "extinction_angle_deg": 4.170091456132553,
+       "sigma_fit_deg": 0.06858489123550261,
+       "sigma_bootstrap_deg": 0.11438941607215296,
+       "minimum_over_maximum_of_fit": 0.002197188223596862,
+       "rms_residual_over_amplitude": 0.0026417116418072364,
+       "lowest_measured_power": 8.3125,
+       "angle_of_lowest_measured_power_deg": 4.0,
+       "powers": [
+        182.9375,
+        139.28125,
+        107.1875,
+        71.78125,
+        45.78125,
+        27.4375,
+        13.0625,
+        8.3125,
+        8.46875,
+        17.78125,
+        34.40625,
+        58.59375,
+        89.5625,
+        135.59375,
+        184.3125,
+        239.4375
+       ]
+      }
+     }
+    },
+    "at_stage_plus_180": {
+     "extinction_angle_deg": 4.50656204827316,
+     "up_deg": 4.45438285683143,
+     "down_deg": 4.558741239714891,
+     "minus_direct_deg": -0.022326563952390188
+    }
+   },
+   "B": {
+    "extinction_angle_deg": 99.07219282560993,
+    "up_deg": 99.13017171266114,
+    "down_deg": 99.01421393855873,
+    "down_minus_up_deg": -0.11595777410241226,
+    "up_down_agree": true,
+    "sigma_statistical_deg": 0.17770503577223368,
+    "spread_over_exposures_and_windows_deg": 1.3067459150160516,
+    "sigma_deg": 0.67958579494078,
+    "exposure_used": [
+     768.0,
+     768.0
+    ],
+    "distance_to_scan_edge_deg": 10.869828287338862,
+    "minimum_over_maximum_of_fit": [
+     0.036084245084189566,
+     0.034904620785817284
+    ],
+    "extinction_range": "high",
+    "up": {
+     "extinction_angle_deg": 99.13017171266114,
+     "sigma_statistical_deg": 0.24876900655843306,
+     "spread_over_exposures_and_windows_deg": 1.3067459150160516,
+     "exposure_used": 768.0,
+     "distance_to_scan_edge_deg": 10.869828287338862,
+     "minimum_over_maximum_of_fit": 0.036084245084189566,
+     "direction": "up",
+     "fits": {
+      "exposure_24_window_3": {
+       "extinction_angle_deg": 99.05400509623723,
+       "sigma_fit_deg": 0.4840455617808449,
+       "sigma_bootstrap_deg": 0.8661470225040437,
+       "minimum_over_maximum_of_fit": 0.023053775602010853,
+       "rms_residual_over_amplitude": 0.013666389625165205,
+       "lowest_measured_power": 13.0,
+       "angle_of_lowest_measured_power_deg": 96.0,
+       "powers": [
+        86.0,
+        64.0,
+        55.0,
+        53.0,
+        38.0,
+        42.0,
+        23.0,
+        20.0,
+        13.0,
+        15.0,
+        17.0,
+        17.0,
+        18.0,
+        19.0,
+        29.0,
+        45.0
+       ]
+      },
+      "exposure_24_window_5": {
+       "extinction_angle_deg": 97.82342579764509,
+       "sigma_fit_deg": 0.3399301872353363,
+       "sigma_bootstrap_deg": 0.4889084029537541,
+       "minimum_over_maximum_of_fit": 0.028477231679481164,
+       "rms_residual_over_amplitude": 0.011067101933840754,
+       "lowest_measured_power": 31.0,
+       "angle_of_lowest_measured_power_deg": 96.0,
+       "powers": [
+        141.0,
+        105.0,
+        92.0,
+        85.0,
+        71.0,
+        66.0,
+        35.0,
+        35.0,
+        31.0,
+        32.0,
+        35.0,
+        40.0,
+        48.0,
+        50.0,
+        61.0,
+        90.0
+       ]
+      },
+      "exposure_192_window_3": {
+       "extinction_angle_deg": 98.97161768980766,
+       "sigma_fit_deg": 0.2792289095586408,
+       "sigma_bootstrap_deg": 0.31862216259669374,
+       "minimum_over_maximum_of_fit": 0.03356199334523847,
+       "rms_residual_over_amplitude": 0.007960898481890742,
+       "lowest_measured_power": 19.75,
+       "angle_of_lowest_measured_power_deg": 96.0,
+       "powers": [
+        89.5,
+        78.125,
+        69.875,
+        61.625,
+        50.125,
+        42.0,
+        31.875,
+        27.0,
+        19.75,
+        23.125,
+        21.25,
+        27.0,
+        28.375,
+        33.125,
+        37.75,
+        50.25
+       ]
+      },
+      "exposure_192_window_5": {
+       "extinction_angle_deg": 98.03445495462654,
+       "sigma_fit_deg": 0.218737980286127,
+       "sigma_bootstrap_deg": 0.2382575626748123,
+       "minimum_over_maximum_of_fit": 0.04129458357834249,
+       "rms_residual_over_amplitude": 0.006955457109308524,
+       "lowest_measured_power": 43.375,
+       "angle_of_lowest_measured_power_deg": 96.0,
+       "powers": [
+        154.625,
+        136.0,
+        123.0,
+        105.875,
+        89.875,
+        77.0,
+        60.125,
+        54.25,
+        43.375,
+        47.125,
+        50.625,
+        58.625,
+        63.125,
+        73.125,
+        81.25,
+        103.25
+       ]
+      },
+      "exposure_768_window_3": {
+       "extinction_angle_deg": 99.13017171266114,
+       "sigma_fit_deg": 0.22390759161472495,
+       "sigma_bootstrap_deg": 0.24876900655843306,
+       "minimum_over_maximum_of_fit": 0.036084245084189566,
+       "rms_residual_over_amplitude": 0.006264996764565712,
+       "lowest_measured_power": 23.0625,
+       "angle_of_lowest_measured_power_deg": 96.0,
+       "powers": [
+        92.40625,
+        79.1875,
+        70.21875,
+        62.53125,
+        51.09375,
+        43.40625,
+        32.1875,
+        28.65625,
+        23.0625,
+        24.59375,
+        23.53125,
+        26.96875,
+        29.46875,
+        35.28125,
+        38.34375,
+        49.03125
+       ]
+      },
+      "exposure_768_window_5": {
+       "extinction_angle_deg": 98.09646932710541,
+       "sigma_fit_deg": 0.16684980649877826,
+       "sigma_bootstrap_deg": 0.18691028559092077,
+       "minimum_over_maximum_of_fit": 0.04452890016973932,
+       "rms_residual_over_amplitude": 0.0052683381533558385,
+       "lowest_measured_power": 50.1875,
+       "angle_of_lowest_measured_power_deg": 96.0,
+       "powers": [
+        160.375,
+        138.09375,
+        122.1875,
+        109.5625,
+        93.1875,
+        78.875,
+        62.75,
+        57.25,
+        50.1875,
+        52.15625,
+        52.78125,
+        60.3125,
+        65.34375,
+        77.8125,
+        85.4375,
+        102.75
+       ]
+      }
+     }
+    },
+    "down": {
+     "extinction_angle_deg": 99.01421393855873,
+     "sigma_statistical_deg": 0.2538312438041734,
+     "spread_over_exposures_and_windows_deg": 1.2543807413284185,
+     "exposure_used": 768.0,
+     "distance_to_scan_edge_deg": 10.985786061441274,
+     "minimum_over_maximum_of_fit": 0.034904620785817284,
+     "direction": "down",
+     "fits": {
+      "exposure_24_window_3": {
+       "extinction_angle_deg": 98.98701225983083,
+       "sigma_fit_deg": 0.3944024207830453,
+       "sigma_bootstrap_deg": 0.594408660997763,
+       "minimum_over_maximum_of_fit": 0.021797280075040146,
+       "rms_residual_over_amplitude": 0.011224067632932431,
+       "lowest_measured_power": 8.0,
+       "angle_of_lowest_measured_power_deg": 98.0,
+       "powers": [
+        86.0,
+        72.0,
+        53.0,
+        45.0,
+        42.0,
+        34.0,
+        21.0,
+        24.0,
+        17.0,
+        8.0,
+        11.0,
+        18.0,
+        24.0,
+        28.0,
+        32.0,
+        34.0
+       ]
+      },
+      "exposure_24_window_5": {
+       "extinction_angle_deg": 98.12930798874723,
+       "sigma_fit_deg": 0.36672059975691157,
+       "sigma_bootstrap_deg": 0.5194794134257247,
+       "minimum_over_maximum_of_fit": 0.029111674319710006,
+       "rms_residual_over_amplitude": 0.01153610605941324,
+       "lowest_measured_power": 20.0,
+       "angle_of_lowest_measured_power_deg": 98.0,
+       "powers": [
+        136.0,
+        123.0,
+        89.0,
+        83.0,
+        74.0,
+        56.0,
+        41.0,
+        39.0,
+        32.0,
+        20.0,
+        32.0,
+        42.0,
+        51.0,
+        63.0,
+        66.0,
+        69.0
+       ]
+      },
+      "exposure_192_window_3": {
+       "extinction_angle_deg": 98.91291813212808,
+       "sigma_fit_deg": 0.29366096888311477,
+       "sigma_bootstrap_deg": 0.41046699466395886,
+       "minimum_over_maximum_of_fit": 0.03562926643236057,
+       "rms_residual_over_amplitude": 0.00843068664494884,
+       "lowest_measured_power": 19.0,
+       "angle_of_lowest_measured_power_deg": 100.0,
+       "powers": [
+        88.0,
+        75.375,
+        65.125,
+        61.75,
+        50.0,
+        42.625,
+        31.625,
+        26.75,
+        23.125,
+        22.625,
+        19.0,
+        25.5,
+        29.75,
+        35.0,
+        39.625,
+        48.25
+       ]
+      },
+      "exposure_192_window_5": {
+       "extinction_angle_deg": 97.75983319723031,
+       "sigma_fit_deg": 0.22429553121221285,
+       "sigma_bootstrap_deg": 0.2923109346522678,
+       "minimum_over_maximum_of_fit": 0.041440961957386314,
+       "rms_residual_over_amplitude": 0.007353604016949069,
+       "lowest_measured_power": 44.0,
+       "angle_of_lowest_measured_power_deg": 100.0,
+       "powers": [
+        151.25,
+        133.0,
+        115.125,
+        106.5,
+        89.125,
+        76.125,
+        60.0,
+        51.0,
+        47.375,
+        47.75,
+        44.0,
+        56.625,
+        66.125,
+        76.0,
+        88.0,
+        101.75
+       ]
+      },
+      "exposure_768_window_3": {
+       "extinction_angle_deg": 99.01421393855873,
+       "sigma_fit_deg": 0.21561180231973356,
+       "sigma_bootstrap_deg": 0.2538312438041734,
+       "minimum_over_maximum_of_fit": 0.034904620785817284,
+       "rms_residual_over_amplitude": 0.006116251541328709,
+       "lowest_measured_power": 21.84375,
+       "angle_of_lowest_measured_power_deg": 100.0,
+       "powers": [
+        92.125,
+        81.53125,
+        69.75,
+        61.71875,
+        52.03125,
+        41.625,
+        32.59375,
+        27.5625,
+        23.96875,
+        22.78125,
+        21.84375,
+        27.625,
+        30.34375,
+        36.625,
+        41.125,
+        47.09375
+       ]
+      },
+      "exposure_768_window_5": {
+       "extinction_angle_deg": 97.9727444834152,
+       "sigma_fit_deg": 0.1797065259447571,
+       "sigma_bootstrap_deg": 0.20793838710884419,
+       "minimum_over_maximum_of_fit": 0.04215124935137685,
+       "rms_residual_over_amplitude": 0.005754206478920289,
+       "lowest_measured_power": 49.8125,
+       "angle_of_lowest_measured_power_deg": 98.0,
+       "powers": [
+        159.71875,
+        142.21875,
+        123.15625,
+        108.9375,
+        93.8125,
+        75.9375,
+        61.6875,
+        54.0,
+        51.28125,
+        49.8125,
+        49.96875,
+        60.4375,
+        67.4375,
+        78.9375,
+        89.625,
+        101.0
+       ]
+      }
+     }
+    }
+   }
+  },
+  "behind_arm": {
+   "direction_A_deg": 94.52888861222556,
+   "direction_B_deg": 9.072192825609932,
+   "sigma_A_deg": 0.23975799307935194,
+   "sigma_B_deg": 0.67958579494078,
+   "angle_between_deg": 94.54330421338437,
+   "sigma_deg": 0.7206391246183699
+  },
+  "before_arm": {
+   "arm_axes_at_0": {
+    "d": -0.7,
+    "direction_A_deg": 100.67805245642782,
+    "direction_B_deg": 3.8375071576144815,
+    "sigma_A_deg": 0.5546006919623512,
+    "sigma_B_deg": 0.291450678980531,
+    "angle_between_deg": 83.15945470118666,
+    "sigma_deg": 0.6265184959786353,
+    "deviation_from_90_deg": -6.840545298813339,
+    "ninety_within_2_sigma": false
+   },
+   "arm_axes_at_6": {
+    "d": -0.7,
+    "direction_A_deg": 92.50163856183276,
+    "direction_B_deg": 7.291598568072492,
+    "sigma_A_deg": 0.5689874297845581,
+    "sigma_B_deg": 0.28616009484790716,
+    "angle_between_deg": 94.78996000623972,
+    "sigma_deg": 0.6368942574212776,
+    "deviation_from_90_deg": 4.789960006239724,
+    "ninety_within_2_sigma": false
+   }
+  },
+  "pass_fractions": {
+   "pair_0_90_one_exposure": {
+    "analyzer_pair_deg": [
+     0.0,
+     90.0
+    ],
+    "tau_A": 0.0026130128037627383,
+    "tau_B": 0.948890383322125,
+    "separation": -0.9462773705183624,
+    "powers": {
+     "A": {
+      "x": 5.0,
+      "y": 1908.5
+     },
+     "B": {
+      "x": 705.5,
+      "y": 38.0
+     }
+    }
+   },
+   "pair_0_90_longest_unsaturated_exposure_per_focus": {
+    "analyzer_pair_deg": [
+     0.0,
+     90.0
+    ],
+    "tau_A": 0.007864780404726901,
+    "tau_B": 0.9445361707331988,
+    "separation": -0.9366713903284719,
+    "powers": {
+     "A": {
+      "x": 15.296875,
+      "y": 1929.6875
+     },
+     "B": {
+      "x": 724.03125,
+      "y": 42.515625
+     }
+    }
+   },
+   "pair_6_96_one_exposure": {
+    "analyzer_pair_deg": [
+     6.0,
+     96.0
+    ],
+    "tau_A": 0.00026595744680851064,
+    "tau_B": 0.9787985865724381,
+    "separation": -0.9785326291256297,
+    "powers": {
+     "A": {
+      "x": 0.5,
+      "y": 1879.5
+     },
+     "B": {
+      "x": 692.5,
+      "y": 15.0
+     }
+    }
+   },
+   "pair_6_96_longest_unsaturated_exposure_per_focus": {
+    "analyzer_pair_deg": [
+     6.0,
+     96.0
+    ],
+    "tau_A": 0.0008053822311528355,
+    "tau_B": 0.9686111748388846,
+    "separation": -0.9678057926077318,
+    "powers": {
+     "A": {
+      "x": 1.546875,
+      "y": 1919.125
+     },
+     "B": {
+      "x": 725.65625,
+      "y": 23.515625
+     }
+    }
+   }
+  },
+  "minutes_since_dataset": 184.25924772818883,
+  "time": "2026-11-15T13:47:31"
+ },
+ "plus_180_equivalent_within_limit": true,
+ "full_scan_pattern_a": {
+  "angles_deg": [
+   0.0,
+   5.0,
+   10.0,
+   15.0,
+   20.0,
+   25.0,
+   30.0,
+   35.0,
+   40.0,
+   45.0,
+   50.0,
+   55.0,
+   60.0,
+   65.0,
+   70.0,
+   75.0,
+   80.0,
+   85.0,
+   90.0,
+   95.0,
+   100.0,
+   105.0,
+   110.0,
+   115.0,
+   120.0,
+   125.0,
+   130.0,
+   135.0,
+   140.0,
+   145.0,
+   150.0,
+   155.0,
+   160.0,
+   165.0,
+   170.0,
+   175.0
+  ],
+  "power_A": [
+   8.0,
+   0.0,
+   7.0,
+   51.0,
+   126.0,
+   233.0,
+   383.0,
+   521.0,
+   676.0,
+   843.0,
+   1038.0,
+   1228.0,
+   1391.0,
+   1600.0,
+   1751.0,
+   1831.0,
+   1947.0,
+   1946.0,
+   1905.0,
+   1912.0,
+   1841.0,
+   1749.0,
+   1576.0,
+   1448.0,
+   1335.0,
+   1205.0,
+   1066.0,
+   927.0,
+   787.0,
+   640.0,
+   537.0,
+   417.0,
+   319.0,
+   200.0,
+   107.0,
+   44.0
+  ],
+  "power_B": [
+   724.0,
+   686.0,
+   689.0,
+   664.0,
+   650.0,
+   618.0,
+   570.0,
+   513.0,
+   492.0,
+   449.0,
+   380.0,
+   324.0,
+   258.0,
+   216.0,
+   157.0,
+   118.0,
+   84.0,
+   50.0,
+   31.0,
+   12.0,
+   9.0,
+   30.0,
+   39.0,
+   65.0,
+   100.0,
+   121.0,
+   169.0,
+   208.0,
+   244.0,
+   286.0,
+   319.0,
+   372.0,
+   404.0,
+   443.0,
+   464.0,
+   502.0
+  ],
+  "exposure": 24.0,
+  "saturated": false,
+  "malus_fit_A": {
+   "c": [
+    933.1944444444445,
+    -954.8327169581312,
+    -25.846512161438852
+   ],
+   "azimuth_deg": 90.77528476517007,
+   "degree_of_linear_polarization": 1.0235621098819447,
+   "rms_residual_over_amplitude": 0.06795526033365062
+  },
+  "malus_fit_B": {
+   "c": [
+    318.33333333333337,
+    286.69644208771854,
+    126.94718044457079
+   ],
+   "azimuth_deg": 11.941713893156088,
+   "degree_of_linear_polarization": 0.9849579624136747,
+   "rms_residual_over_amplitude": 0.12135799676327613
+  },
+  "minutes_since_dataset": 185.62430743376413
+ },
+ "calibration_x_angle": {
+  "d": NaN,
+  "d_per_basis": [
+   -1.0,
+   -0.7362089305490942,
+   -0.6746101562345386
+  ],
+  "d_from_constraining_pairs": -0.7054802509427948,
+  "R1": [
+   NaN,
+   NaN,
+   NaN
+  ],
+  "R1_norm": NaN,
+  "pair_imbalance": [
+   NaN,
+   NaN,
+   NaN
+  ],
+  "angle_R1_to_minus_e1_deg": NaN,
+  "checks": {
+   "R1_norm_within_0p9_1p1": false,
+   "pair_imbalance_below_0p15": false,
+   "d_per_basis_agree_within_0p15": true
+  },
+  "powers": {
+   "x'/y'": [
+    0.0,
+    1898.0,
+    691.0,
+    17.0
+   ],
+   "+45'/-45'": [
+    304.0,
+    2068.0,
+    288.0,
+    1834.0
+   ],
+   "R'/L'": [
+    181.0,
+    1071.0,
+    147.0,
+    658.0
+   ]
+  },
+  "patterns": {
+   "probe_xy_weighted_tm": {
+    "angles_deg": [
+     0.0,
+     90.0
+    ],
+    "dark_level": [
+     0.0,
+     0.0
+    ],
+    "A": {
+     "peak_yx": [
+      47,
+      56
+     ],
+     "window_power": [
+      0.0,
+      1898.0
+     ],
+     "pbr_behind_polarizer": [
+      15.147142857142857,
+      398.12030651340996
+     ]
+    },
+    "B": {
+     "peak_yx": [
+      80,
+      71
+     ],
+     "window_power": [
+      691.0,
+      17.0
+     ],
+     "pbr_behind_polarizer": [
+      526.9188935771215,
+      6.561262376237624
+     ]
+    },
+    "transmitted_fraction_A_at_x": 0.0,
+    "transmitted_fraction_B_at_x": 0.9759887005649718,
+    "separation": -0.9759887005649718,
+    "leak_B_over_A_at_x": Infinity,
+    "leak_A_over_B_at_y": 111.6470588235294,
+    "powers_A_x_y_B_x_y": [
+     0.0,
+     1898.0,
+     691.0,
+     17.0
+    ],
+    "pbr_A_at_0_90": [
+     15.147142857142857,
+     398.12030651340996
+    ],
+    "pbr_B_at_0_90": [
+     526.9188935771215,
+     6.561262376237624
+    ],
+    "exposure": 24.0,
+    "saturated": false,
+    "before_arm": {
+     "d_used": NaN,
+     "tau_A": NaN,
+     "tau_B": NaN,
+     "separation": NaN
+    }
+   },
+   "probe_pm45_weighted_tm": {
+    "angles_deg": [
+     0.0,
+     90.0
+    ],
+    "dark_level": [
+     0.0,
+     0.0
+    ],
+    "A": {
+     "peak_yx": [
+      48,
+      56
+     ],
+     "window_power": [
+      304.0,
+      2068.0
+     ],
+     "pbr_behind_polarizer": [
+      192.5583462132921,
+      207.70863554646334
+     ]
+    },
+    "B": {
+     "peak_yx": [
+      80,
+      73
+     ],
+     "window_power": [
+      288.0,
+      1834.0
+     ],
+     "pbr_behind_polarizer": [
+      166.94431643625194,
+      187.2451573479988
+     ]
+    },
+    "transmitted_fraction_A_at_x": 0.1281618887015177,
+    "transmitted_fraction_B_at_x": 0.1357210179076343,
+    "separation": -0.007559129206116594,
+    "leak_B_over_A_at_x": 0.9473684210526315,
+    "leak_A_over_B_at_y": 1.1275899672846237,
+    "powers_A_x_y_B_x_y": [
+     304.0,
+     2068.0,
+     288.0,
+     1834.0
+    ],
+    "pbr_A_at_0_90": [
+     192.5583462132921,
+     207.70863554646334
+    ],
+    "pbr_B_at_0_90": [
+     166.94431643625194,
+     187.2451573479988
+    ],
+    "exposure": 24.0,
+    "saturated": false,
+    "before_arm": {
+     "d_used": NaN,
+     "tau_A": NaN,
+     "tau_B": NaN,
+     "separation": NaN
+    }
+   },
+   "probe_RL_weighted_tm": {
+    "angles_deg": [
+     0.0,
+     90.0
+    ],
+    "dark_level": [
+     0.0,
+     0.0
+    ],
+    "A": {
+     "peak_yx": [
+      47,
+      56
+     ],
+     "window_power": [
+      181.0,
+      1071.0
+     ],
+     "pbr_behind_polarizer": [
+      214.72555865921785,
+      175.65697733509504
+     ]
+    },
+    "B": {
+     "peak_yx": [
+      80,
+      72
+     ],
+     "window_power": [
+      147.0,
+      658.0
+     ],
+     "pbr_behind_polarizer": [
+      151.88472032742155,
+      108.59490831057354
+     ]
+    },
+    "transmitted_fraction_A_at_x": 0.14456869009584664,
+    "transmitted_fraction_B_at_x": 0.1826086956521739,
+    "separation": -0.03804000555632728,
+    "leak_B_over_A_at_x": 0.8121546961325967,
+    "leak_A_over_B_at_y": 1.627659574468085,
+    "powers_A_x_y_B_x_y": [
+     181.0,
+     1071.0,
+     147.0,
+     658.0
+    ],
+    "pbr_A_at_0_90": [
+     214.72555865921785,
+     175.65697733509504
+    ],
+    "pbr_B_at_0_90": [
+     151.88472032742155,
+     108.59490831057354
+    ],
+    "exposure": 24.0,
+    "saturated": false,
+    "before_arm": {
+     "d_used": NaN,
+     "tau_A": NaN,
+     "tau_B": NaN,
+     "separation": NaN
+    }
+   }
+  },
+  "U_real": [
+   [
+    NaN,
+    NaN
+   ],
+   [
+    NaN,
+    NaN
+   ]
+  ],
+  "U_imag": [
+   [
+    NaN,
+    NaN
+   ],
+   [
+    NaN,
+    NaN
+   ]
+  ],
+  "minutes_since_dataset": 186.1467066049576,
+  "time": "2026-11-15T13:49:24"
+ },
+ "test_b_x_angle": {
+  "angles_deg": [
+   0.0,
+   15.0,
+   30.0,
+   45.0,
+   60.0,
+   75.0,
+   90.0,
+   105.0,
+   120.0,
+   135.0,
+   150.0,
+   165.0
+  ],
+  "dark_level": [
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0,
+   0.0
+  ],
+  "A": {
+   "peak_yx": [
+    45,
+    56
+   ],
+   "window_power": [
+    54.0,
+    162.0,
+    278.0,
+    449.0,
+    603.0,
+    599.0,
+    574.0,
+    441.0,
+    269.0,
+    144.0,
+    74.0,
+    31.0
+   ],
+   "pbr_behind_polarizer": [
+    5.318472183290796,
+    4.491470161611234,
+    5.704106185688016,
+    6.563219676630272,
+    7.142753970614118,
+    6.559144701452394,
+    6.179483176704445,
+    5.17790689285853,
+    4.205815987462853,
+    2.9768705460731124,
+    3.4702115357341565,
+    5.601395782068927
+   ],
+   "azimuth_deg": 74.41663463114158,
+   "degree_of_linear_polarization": 0.9618419631021625
+  },
+  "B": {
+   "peak_yx": [
+    79,
+    73
+   ],
+   "window_power": [
+    70.0,
+    77.0,
+    109.0,
+    155.0,
+    189.0,
+    255.0,
+    287.0,
+    278.0,
+    203.0,
+    153.0,
+    106.0,
+    67.0
+   ],
+   "pbr_behind_polarizer": [
+    2.9666602853903132,
+    2.718264904567188,
+    2.4846413716338924,
+    2.4453049442782957,
+    2.2451208150326085,
+    2.5599156593539245,
+    2.4774007632596904,
+    2.7012067810127216,
+    2.478897021099732,
+    2.5378380832115948,
+    2.42753259779338,
+    2.206874063384581
+   ],
+   "azimuth_deg": 90.6254195963739,
+   "degree_of_linear_polarization": 0.6593504298063751
+  },
+  "transmitted_fraction_A_at_x": 0.08598726114649681,
+  "transmitted_fraction_B_at_x": 0.19607843137254902,
+  "separation": -0.1100911702260522,
+  "leak_B_over_A_at_x": 1.2962962962962963,
+  "leak_A_over_B_at_y": 2.0,
+  "powers_A_x_y_B_x_y": [
+   54.0,
+   574.0,
+   70.0,
+   287.0
+  ],
+  "pbr_A_at_0_90": [
+   5.318472183290796,
+   6.179483176704445
+  ],
+  "pbr_B_at_0_90": [
+   2.9666602853903132,
+   2.4774007632596904
+  ],
+  "exposure": 24.0,
+  "saturated": false,
+  "before_arm": {
+   "d_used": NaN,
+   "tau_A": NaN,
+   "tau_B": NaN,
+   "separation": NaN
+  },
+  "minutes_since_dataset": 187.02982014020284,
+  "time": "2026-11-15T13:50:17"
+ },
+ "freshness_before_pairs": {
+  "pcc_first_8": [
+   0.9471234798776828,
+   0.9478712661776323,
+   0.9415619167426021,
+   0.9497419613144354,
+   0.9500855645882613,
+   0.9349299110836466,
+   0.943686487237141,
+   0.9463035382769657
+  ],
+  "mean": 0.9451630156622959,
+  "mean_against_the_previous_mask": 0.040347787936491165,
+  "minutes_since_dataset": 187.6287398616473,
+  "time": "2026-11-15T13:50:53",
+  "per_angle": {
+   "0": {
+    "mean_level": 24.10645294189453,
+    "mean_level_first_run": 24.13323974609375,
+    "shift_px": [
+     -9.671929503021378,
+     2.6961895595409424
+    ],
+    "shift_first_run_px": [
+     -9.665963939525266,
+     2.6309661279807934
+    ],
+    "correlation_between_different_masks": 0.05900170544953022
+   },
+   "90": {
+    "mean_level": 89.27824401855469,
+    "mean_level_first_run": 88.67837524414062,
+    "shift_px": [
+     -2.712099515870555,
+     -9.44499897437683
+    ],
+    "shift_first_run_px": [
+     -2.7031967936695622,
+     -9.460126526149178
+    ],
+    "correlation_between_different_masks": 0.0683648854431973
+   }
+  }
+ },
+ "pairs": {
+  "frame_of_the_design": {
+   "d": -0.7063843833105572,
+   "theta0_deg": 5.96513539881396
+  },
+  "phi": {
+   "-4": {
+    "windows": {
+     "A": {
+      "centre_deg": 72.0,
+      "plus180": false,
+      "predicted_extinction_deg": 72.96801787431608
+     },
+     "B": {
+      "centre_deg": 2.0,
+      "plus180": true,
+      "predicted_extinction_deg": 1.6250184765563915
+     }
+    },
+    "foci": {
+     "A": {
+      "extinction_angle_deg": 75.38790030045371,
+      "up_deg": 75.54244396215249,
+      "down_deg": 75.23335663875493,
+      "down_minus_up_deg": -0.30908732339756284,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.07566778653734926,
+      "spread_over_exposures_and_windows_deg": 0.8574059854098408,
+      "sigma_deg": 0.4619476304137562,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 10.45755603784751,
+      "minimum_over_maximum_of_fit": [
+       0.00395695176606164,
+       0.0035763480750842097
+      ],
+      "peak_yx": [
+       48,
+       56
+      ]
+     },
+     "B": {
+      "extinction_angle_deg": 1.4102993919679179,
+      "up_deg": 1.399682517049115,
+      "down_deg": 1.4209162668867208,
+      "down_minus_up_deg": 0.021233749837605842,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.0720508554268452,
+      "spread_over_exposures_and_windows_deg": 0.629905567172699,
+      "sigma_deg": 0.3232635143185379,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 13.399682517049115,
+      "minimum_over_maximum_of_fit": [
+       0.0004835283474809962,
+       0.0002818039802249462
+      ],
+      "peak_yx": [
+       81,
+       72
+      ]
+     }
+    },
+    "behind_arm": {
+     "direction_A_deg": 165.3879003004537,
+     "direction_B_deg": 91.41029939196792,
+     "sigma_A_deg": 0.4619476304137562,
+     "sigma_B_deg": 0.3232635143185379,
+     "angle_between_deg": 106.02239909151422,
+     "sigma_deg": 0.5638217031424525
+    },
+    "before_arm": {
+     "arm_axes_at_0": {
+      "d": -0.7,
+      "direction_A_deg": 173.74996499157973,
+      "direction_B_deg": 93.3540257839007,
+      "sigma_A_deg": 0.2047901386915024,
+      "sigma_B_deg": 0.7673510313199287,
+      "angle_between_deg": 99.60406079232096,
+      "sigma_deg": 0.7942081629982425,
+      "deviation_from_90_deg": 9.604060792320965,
+      "ninety_within_2_sigma": false
+     },
+     "arm_axes_at_6": {
+      "d": -0.7,
+      "direction_A_deg": 177.02146338320372,
+      "direction_B_deg": 85.18133249753309,
+      "sigma_A_deg": 0.2161137393935803,
+      "sigma_B_deg": 0.7471931273960013,
+      "angle_between_deg": 88.15986911432937,
+      "sigma_deg": 0.7778192064885602,
+      "deviation_from_90_deg": -1.8401308856706322,
+      "ninety_within_2_sigma": false
+     }
+    },
+    "minutes_since_dataset": 190.01208026011784
+   },
+   "0": {
+    "windows": {
+     "A": {
+      "centre_deg": 82.0,
+      "plus180": false,
+      "predicted_extinction_deg": 82.09830702177464
+     },
+     "B": {
+      "centre_deg": 4.0,
+      "plus180": true,
+      "predicted_extinction_deg": 3.6619935846689486
+     }
+    },
+    "foci": {
+     "A": {
+      "extinction_angle_deg": 85.98470855597787,
+      "up_deg": 85.94419077420899,
+      "down_deg": 86.02522633774677,
+      "down_minus_up_deg": 0.08103556353778174,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.06784687615329194,
+      "spread_over_exposures_and_windows_deg": 0.5430958394287586,
+      "sigma_deg": 0.28281294515003835,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 9.974773662253227,
+      "minimum_over_maximum_of_fit": [
+       0.00291160747790483,
+       0.003073815657191064
+      ],
+      "peak_yx": [
+       48,
+       56
+      ]
+     },
+     "B": {
+      "extinction_angle_deg": 2.9899953498175336,
+      "up_deg": 2.983251090467661,
+      "down_deg": 2.996739609167406,
+      "down_minus_up_deg": 0.0134885186997451,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.05751550363733062,
+      "spread_over_exposures_and_windows_deg": 0.661788586514902,
+      "sigma_deg": 0.33592343101245875,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 12.983251090467661,
+      "minimum_over_maximum_of_fit": [
+       0.00041432321154169673,
+       0.0005927442782248349
+      ],
+      "peak_yx": [
+       81,
+       72
+      ]
+     }
+    },
+    "behind_arm": {
+     "direction_A_deg": 175.98470855597787,
+     "direction_B_deg": 92.98999534981753,
+     "sigma_A_deg": 0.28281294515003835,
+     "sigma_B_deg": 0.33592343101245875,
+     "angle_between_deg": 97.00528679383966,
+     "sigma_deg": 0.4391215246917654
+    },
+    "before_arm": {
+     "arm_axes_at_0": {
+      "d": -0.7,
+      "direction_A_deg": 178.31096286906296,
+      "direction_B_deg": 97.08770460570211,
+      "sigma_A_deg": 0.11928689552676815,
+      "sigma_B_deg": 0.7896307234913663,
+      "angle_between_deg": 98.77674173663915,
+      "sigma_deg": 0.7985900343266955,
+      "deviation_from_90_deg": 8.776741736639153,
+      "ninety_within_2_sigma": false
+     },
+     "arm_axes_at_6": {
+      "d": -0.7,
+      "direction_A_deg": 1.7571274421219698,
+      "direction_B_deg": 88.86526488964275,
+      "sigma_A_deg": 0.12183997770220474,
+      "sigma_B_deg": 0.7894979170043891,
+      "angle_between_deg": 87.10813744752078,
+      "sigma_deg": 0.798844128175668,
+      "deviation_from_90_deg": -2.8918625524792247,
+      "ninety_within_2_sigma": false
+     }
+    },
+    "minutes_since_dataset": 192.4526748140653
+   },
+   "4": {
+    "windows": {
+     "A": {
+      "centre_deg": 92.0,
+      "plus180": false,
+      "predicted_extinction_deg": 91.01998404286644
+     },
+     "B": {
+      "centre_deg": 6.0,
+      "plus180": true,
+      "predicted_extinction_deg": 5.535422094488354
+     }
+    },
+    "foci": {
+     "A": {
+      "extinction_angle_deg": 96.10875107650503,
+      "up_deg": 96.26323458879409,
+      "down_deg": 95.95426756421597,
+      "down_minus_up_deg": -0.30896702457812353,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.09015094445937115,
+      "spread_over_exposures_and_windows_deg": 0.715381095580085,
+      "sigma_deg": 0.39991858713295886,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 9.736765411205909,
+      "minimum_over_maximum_of_fit": [
+       0.0014214202820558857,
+       0.001593725741103624
+      ],
+      "peak_yx": [
+       48,
+       56
+      ]
+     },
+     "B": {
+      "extinction_angle_deg": 5.541628236271443,
+      "up_deg": 5.552358252286965,
+      "down_deg": 5.530898220255921,
+      "down_minus_up_deg": -0.021460032031043852,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.0526687069606551,
+      "spread_over_exposures_and_windows_deg": 0.63321341456043,
+      "sigma_deg": 0.32113693812985833,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 13.53089822025592,
+      "minimum_over_maximum_of_fit": [
+       0.0007587794893878312,
+       0.0007439976728280475
+      ],
+      "peak_yx": [
+       81,
+       72
+      ]
+     }
+    },
+    "behind_arm": {
+     "direction_A_deg": 6.10875107650503,
+     "direction_B_deg": 95.54162823627144,
+     "sigma_A_deg": 0.39991858713295886,
+     "sigma_B_deg": 0.32113693812985833,
+     "angle_between_deg": 89.4328771597664,
+     "sigma_deg": 0.5128974647683906
+    },
+    "before_arm": {
+     "arm_axes_at_0": {
+      "d": -0.7,
+      "direction_A_deg": 2.574223258521041,
+      "direction_B_deg": 103.00496538781421,
+      "sigma_A_deg": 0.16958094707713592,
+      "sigma_B_deg": 0.7325768971313374,
+      "angle_between_deg": 100.43074212929317,
+      "sigma_deg": 0.7519485406742649,
+      "deviation_from_90_deg": 10.430742129293165,
+      "ninety_within_2_sigma": false
+     },
+     "arm_axes_at_6": {
+      "d": -0.7,
+      "direction_A_deg": 6.045684635144363,
+      "direction_B_deg": 94.90896556300845,
+      "sigma_A_deg": 0.16799994339543892,
+      "sigma_B_deg": 0.7642296651166683,
+      "angle_between_deg": 88.86328092786408,
+      "sigma_deg": 0.7824774514484144,
+      "deviation_from_90_deg": -1.136719072135918,
+      "ninety_within_2_sigma": true
+     }
+    },
+    "minutes_since_dataset": 194.85931257009506
+   },
+   "8": {
+    "windows": {
+     "A": {
+      "centre_deg": 100.0,
+      "plus180": false,
+      "predicted_extinction_deg": 100.65074340139076
+     },
+     "B": {
+      "centre_deg": 8.0,
+      "plus180": true,
+      "predicted_extinction_deg": 7.108174174022565
+     }
+    },
+    "foci": {
+     "A": {
+      "extinction_angle_deg": 106.45655128490098,
+      "up_deg": 106.49234457918868,
+      "down_deg": 106.42075799061328,
+      "down_minus_up_deg": -0.0715865885753999,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.12577896239478467,
+      "spread_over_exposures_and_windows_deg": 0.7582021399109635,
+      "sigma_deg": 0.40102260352561875,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 7.507655420811318,
+      "minimum_over_maximum_of_fit": [
+       0.0005721516377240866,
+       0.00037314289554718624
+      ],
+      "peak_yx": [
+       48,
+       56
+      ]
+     },
+     "B": {
+      "extinction_angle_deg": 6.777928183324377,
+      "up_deg": 6.7664017728527455,
+      "down_deg": 6.789454593796009,
+      "down_minus_up_deg": 0.02305282094326344,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.0370937126300731,
+      "spread_over_exposures_and_windows_deg": 0.4419433307761551,
+      "sigma_deg": 0.22435970796786017,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 12.766401772852745,
+      "minimum_over_maximum_of_fit": [
+       0.0030274582788335676,
+       0.0023644459965842996
+      ],
+      "peak_yx": [
+       80,
+       72
+      ]
+     }
+    },
+    "behind_arm": {
+     "direction_A_deg": 16.456551284900968,
+     "direction_B_deg": 96.77792818332438,
+     "sigma_A_deg": 0.40102260352561875,
+     "sigma_B_deg": 0.22435970796786017,
+     "angle_between_deg": 80.32137689842341,
+     "sigma_deg": 0.4595175808365651
+    },
+    "before_arm": {
+     "arm_axes_at_0": {
+      "d": -0.7,
+      "direction_A_deg": 7.073567760677654,
+      "direction_B_deg": 105.79751201986791,
+      "sigma_A_deg": 0.1803848736872473,
+      "sigma_B_deg": 0.5014848372716005,
+      "angle_between_deg": 98.72394425919026,
+      "sigma_deg": 0.5329406577363823,
+      "deviation_from_90_deg": 8.723944259190262,
+      "ninety_within_2_sigma": false
+     },
+     "arm_axes_at_6": {
+      "d": -0.7,
+      "direction_A_deg": 10.433188812238514,
+      "direction_B_deg": 97.85130874039503,
+      "sigma_A_deg": 0.17316035367390165,
+      "sigma_B_deg": 0.5336232645429697,
+      "angle_between_deg": 87.41811992815651,
+      "sigma_deg": 0.5610154156045687,
+      "deviation_from_90_deg": -2.581880071843486,
+      "ninety_within_2_sigma": false
+     }
+    },
+    "minutes_since_dataset": 197.25390439430873
+   },
+   "12": {
+    "windows": {
+     "A": {
+      "centre_deg": 110.0,
+      "plus180": false,
+      "predicted_extinction_deg": 110.45795021393283
+     },
+     "B": {
+      "centre_deg": 8.0,
+      "plus180": true,
+      "predicted_extinction_deg": 8.528900497207445
+     }
+    },
+    "foci": {
+     "A": {
+      "extinction_angle_deg": 115.70616392469611,
+      "up_deg": 115.73618832962407,
+      "down_deg": 115.67613951976816,
+      "down_minus_up_deg": -0.06004880985591399,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.1383333273254343,
+      "spread_over_exposures_and_windows_deg": 0.5650559712890129,
+      "sigma_deg": 0.316005754714287,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 8.26381167037593,
+      "minimum_over_maximum_of_fit": [
+       0.00045892643774894453,
+       0.0001668752890178671
+      ],
+      "peak_yx": [
+       48,
+       56
+      ]
+     },
+     "B": {
+      "extinction_angle_deg": 8.557279753659436,
+      "up_deg": 8.606904812395697,
+      "down_deg": 8.507654694923175,
+      "down_minus_up_deg": -0.09925011747252199,
+      "up_down_agree": true,
+      "sigma_statistical_deg": 0.047553033489777775,
+      "spread_over_exposures_and_windows_deg": 0.6825418487753296,
+      "sigma_deg": 0.34812322714962374,
+      "exposure_used": [
+       768.0,
+       768.0
+      ],
+      "distance_to_scan_edge_deg": 13.393095187604303,
+      "minimum_over_maximum_of_fit": [
+       0.0029079868609773276,
+       0.0029475602105514076
+      ],
+      "peak_yx": [
+       80,
+       72
+      ]
+     }
+    },
+    "behind_arm": {
+     "direction_A_deg": 25.706163924696114,
+     "direction_B_deg": 98.55727975365943,
+     "sigma_A_deg": 0.316005754714287,
+     "sigma_B_deg": 0.34812322714962374,
+     "angle_between_deg": 72.85111582896332,
+     "sigma_deg": 0.4701589287609187
+    },
+    "before_arm": {
+     "arm_axes_at_0": {
+      "d": -0.7,
+      "direction_A_deg": 11.43264976559333,
+      "direction_B_deg": 109.7074160560286,
+      "sigma_A_deg": 0.15708870263782948,
+      "sigma_B_deg": 0.751092585842563,
+      "angle_between_deg": 98.27476629043528,
+      "sigma_deg": 0.767344077323924,
+      "deviation_from_90_deg": 8.27476629043528,
+      "ninety_within_2_sigma": false
+     },
+     "arm_axes_at_6": {
+      "d": -0.7,
+      "direction_A_deg": 14.556699408459796,
+      "direction_B_deg": 102.06879117021059,
+      "sigma_A_deg": 0.14646332233257708,
+      "sigma_B_deg": 0.8210701188115539,
+      "angle_between_deg": 87.5120917617508,
+      "sigma_deg": 0.834030961531954,
+      "deviation_from_90_deg": -2.4879082382492044,
+      "ninety_within_2_sigma": false
+     }
+    },
+    "minutes_since_dataset": 199.61336536804836
+   }
+  },
+  "result": {
+   "phi_deg": [
+    -4.0,
+    0.0,
+    4.0,
+    8.0,
+    12.0
+   ],
+   "angle_between_behind_arm_deg": [
+    106.02239909151422,
+    97.00528679383966,
+    89.4328771597664,
+    80.32137689842341,
+    72.85111582896332
+   ],
+   "sigma_deg": [
+    0.5638217031424525,
+    0.4391215246917654,
+    0.5128974647683906,
+    0.4595175808365651,
+    0.4701589287609187
+   ],
+   "direction_A_behind_arm_deg": [
+    -14.612099699546292,
+    -4.015291444022125,
+    6.10875107650503,
+    16.456551284900968,
+    25.706163924696114
+   ],
+   "direction_B_behind_arm_deg": [
+    91.41029939196792,
+    92.98999534981753,
+    95.54162823627144,
+    96.77792818332438,
+    98.55727975365943
+   ],
+   "linear_fit_slope": -2.0756619105129523,
+   "linear_fit_intercept": 97.42925879655324,
+   "rms_residual_of_linear_fit_deg": 0.379288392579651,
+   "phi_with_90_deg": 3.5792239376388952,
+   "sigma_phi_deg": 0.10567134617738393,
+   "arm_axes_stage_deg": [
+    4.865215483735652,
+    94.86521548373565
+   ],
+   "arm_axes_sigma_deg": 0.267106439132842,
+   "inside_scanned_phi_range": true
+  }
+ },
+ "finished": "2026-11-15T14:03:12"
+}

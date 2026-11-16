@@ -1,0 +1,923 @@
+{
+ "targets_yx": {
+  "A": [
+   48,
+   56
+  ],
+  "B": [
+   80,
+   72
+  ]
+ },
+ "geometry": "Fourier-plane camera 40238131, Mono12. Full sensor frame, cropped to 562 x 562 camera px around the centre of the image (displaced by the polarizer wedge), then cv2.resize to 128 x 128 with INTER_LINEAR on uint16 (4.39 camera px per grid px; each grid pixel is a bilinear sample of the camera counts, rounded to an integer). The full sensor frames were not saved.",
+ "frames": [
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_up__frames[0, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0024_scan_up.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0024_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 104.0,
+   "fraction_of_pixels_reading_0": 0.92852783203125,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 2.0,
+    "window_3x3_counts": 17.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 104.0,
+    "window_3x3_counts": 695.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_up__frames[1, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 192.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0192_scan_up.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0192_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 826.0,
+   "fraction_of_pixels_reading_0": 0.6893310546875,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     59
+    ],
+    "peak_count": 31.0,
+    "window_3x3_counts": 229.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 826.0,
+    "window_3x3_counts": 5749.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_up__frames[2, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 768.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0768_scan_up.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0768_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 3312.0,
+   "fraction_of_pixels_reading_0": 0.3939208984375,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 116.0,
+    "window_3x3_counts": 856.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 3312.0,
+    "window_3x3_counts": 23346.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_down__frames[0, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0024_scan_down.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0024_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 104.0,
+   "fraction_of_pixels_reading_0": 0.92816162109375,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 2.0,
+    "window_3x3_counts": 17.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 104.0,
+    "window_3x3_counts": 690.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_down__frames[1, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 192.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0192_scan_down.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0192_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 824.0,
+   "fraction_of_pixels_reading_0": 0.6846923828125,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     59
+    ],
+    "peak_count": 27.0,
+    "window_3x3_counts": 213.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     72
+    ],
+    "peak_count": 824.0,
+    "window_3x3_counts": 5785.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_down__frames[2, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 768.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0768_scan_down.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0768_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 3325.0,
+   "fraction_of_pixels_reading_0": 0.39190673828125,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     59
+    ],
+    "peak_count": 113.0,
+    "window_3x3_counts": 933.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 3325.0,
+    "window_3x3_counts": 23096.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "high_up__frames[0, 8]",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0024_scan_up.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0024_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 297.0,
+   "fraction_of_pixels_reading_0": 0.83782958984375,
+   "focus_A": {
+    "peak_yx": [
+     47,
+     56
+    ],
+    "peak_count": 297.0,
+    "window_3x3_counts": 1890.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     75
+    ],
+    "peak_count": 7.0,
+    "window_3x3_counts": 49.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "high_up__frames[1, 8]",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 192.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0192_scan_up.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0192_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 2423.0,
+   "fraction_of_pixels_reading_0": 0.44171142578125,
+   "focus_A": {
+    "peak_yx": [
+     47,
+     56
+    ],
+    "peak_count": 2423.0,
+    "window_3x3_counts": 15456.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     75
+    ],
+    "peak_count": 61.0,
+    "window_3x3_counts": 463.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "high_up__frames[2, 8]",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 768.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": true,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0768_scan_up.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0768_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 4095.0,
+   "fraction_of_pixels_reading_0": 0.21966552734375,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     55
+    ],
+    "peak_count": 4095.0,
+    "window_3x3_counts": 27348.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     75
+    ],
+    "peak_count": 238.0,
+    "window_3x3_counts": 1871.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "high_down__frames[0, 8]",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0024_scan_down.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0024_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 301.0,
+   "fraction_of_pixels_reading_0": 0.8408203125,
+   "focus_A": {
+    "peak_yx": [
+     47,
+     56
+    ],
+    "peak_count": 301.0,
+    "window_3x3_counts": 1869.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     79,
+     75
+    ],
+    "peak_count": 6.0,
+    "window_3x3_counts": 42.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "high_down__frames[1, 8]",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 192.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0192_scan_down.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0192_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 2374.0,
+   "fraction_of_pixels_reading_0": 0.44757080078125,
+   "focus_A": {
+    "peak_yx": [
+     47,
+     56
+    ],
+    "peak_count": 2374.0,
+    "window_3x3_counts": 15250.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     75
+    ],
+    "peak_count": 60.0,
+    "window_3x3_counts": 469.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "high_down__frames[2, 8]",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 768.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": true,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0768_scan_down.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0768_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 4095.0,
+   "fraction_of_pixels_reading_0": 0.219482421875,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     55
+    ],
+    "peak_count": 4095.0,
+    "window_3x3_counts": 27181.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     75
+    ],
+    "peak_count": 241.0,
+    "window_3x3_counts": 1896.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_plus180_up__frames[0, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 186.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_186deg_exposure_0024_scan_up.npy",
+   "png": "pattern_a_analyzer_006deg_stage_186deg_exposure_0024_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 76.0,
+   "fraction_of_pixels_reading_0": 0.93096923828125,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 4.0,
+    "window_3x3_counts": 24.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     72
+    ],
+    "peak_count": 76.0,
+    "window_3x3_counts": 540.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_plus180_up__frames[1, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 186.0,
+   "exposure": 192.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_186deg_exposure_0192_scan_up.npy",
+   "png": "pattern_a_analyzer_006deg_stage_186deg_exposure_0192_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 663.0,
+   "fraction_of_pixels_reading_0": 0.68865966796875,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 32.0,
+    "window_3x3_counts": 228.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 663.0,
+    "window_3x3_counts": 4639.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_plus180_up__frames[2, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 186.0,
+   "exposure": 768.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "up",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_186deg_exposure_0768_scan_up.npy",
+   "png": "pattern_a_analyzer_006deg_stage_186deg_exposure_0768_scan_up_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 2683.0,
+   "fraction_of_pixels_reading_0": 0.39373779296875,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 135.0,
+    "window_3x3_counts": 977.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 2683.0,
+    "window_3x3_counts": 18842.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_plus180_down__frames[0, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 186.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_186deg_exposure_0024_scan_down.npy",
+   "png": "pattern_a_analyzer_006deg_stage_186deg_exposure_0024_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 79.0,
+   "fraction_of_pixels_reading_0": 0.93218994140625,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 4.0,
+    "window_3x3_counts": 25.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     72
+    ],
+    "peak_count": 79.0,
+    "window_3x3_counts": 546.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_plus180_down__frames[1, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 186.0,
+   "exposure": 192.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_186deg_exposure_0192_scan_down.npy",
+   "png": "pattern_a_analyzer_006deg_stage_186deg_exposure_0192_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 638.0,
+   "fraction_of_pixels_reading_0": 0.6856689453125,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     59
+    ],
+    "peak_count": 33.0,
+    "window_3x3_counts": 252.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 638.0,
+    "window_3x3_counts": 4601.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/fine_scans_pattern_a.npz",
+   "source_key": "low_plus180_down__frames[2, 8]",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 186.0,
+   "exposure": 768.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "scan_direction": "down",
+   "recorded": "2026-11-15, between 13:44 and 13:47 (2 deg scans of the follow-up run)",
+   "saturated_near_A": false,
+   "saturated_near_B": false,
+   "file": "pattern_a_analyzer_006deg_stage_186deg_exposure_0768_scan_down.npy",
+   "png": "pattern_a_analyzer_006deg_stage_186deg_exposure_0768_scan_down_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 2648.0,
+   "fraction_of_pixels_reading_0": 0.396728515625,
+   "focus_A": {
+    "peak_yx": [
+     46,
+     59
+    ],
+    "peak_count": 131.0,
+    "window_3x3_counts": 1070.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 2648.0,
+    "window_3x3_counts": 18520.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/two_foci_x6_probe_xy_weighted_tm_frames.npz",
+   "source_key": "frames[0] (angles_deg = 0 from lab x = stage 6 deg)",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "recorded": "2026-11-15 13:49 (test (a) with lab x at stage 6 deg; the numbers of the follow-up report, -0.976 raw, come from this record)",
+   "file": "pattern_a_analyzer_006deg_stage_006deg_exposure_0024_test_a_record.npy",
+   "png": "pattern_a_analyzer_006deg_stage_006deg_exposure_0024_test_a_record_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 106.0,
+   "fraction_of_pixels_reading_0": 0.92974853515625,
+   "focus_A": {
+    "peak_yx": [
+     47,
+     59
+    ],
+    "peak_count": 4.0,
+    "window_3x3_counts": 24.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     71
+    ],
+    "peak_count": 106.0,
+    "window_3x3_counts": 691.0
+   }
+  },
+  {
+   "pattern": "(a) x'/y' of the weighted TM, no polarizer information",
+   "slm_pattern_file": "results_small/polarizer_test_20261115_1201/two_foci_probe_xy_weighted_tm_phase_uint8.npy",
+   "source": "results_small/polarizer_followup_20261115_1342/two_foci_x6_probe_xy_weighted_tm_frames.npz",
+   "source_key": "frames[1] (angles_deg = 90 from lab x = stage 6 deg)",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 24.0,
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "recorded": "2026-11-15 13:49 (test (a) with lab x at stage 6 deg; the numbers of the follow-up report, -0.976 raw, come from this record)",
+   "file": "pattern_a_analyzer_096deg_stage_096deg_exposure_0024_test_a_record.npy",
+   "png": "pattern_a_analyzer_096deg_stage_096deg_exposure_0024_test_a_record_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 294.0,
+   "fraction_of_pixels_reading_0": 0.841064453125,
+   "focus_A": {
+    "peak_yx": [
+     47,
+     56
+    ],
+    "peak_count": 294.0,
+    "window_3x3_counts": 1898.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     78,
+     71
+    ],
+    "peak_count": 6.0,
+    "window_3x3_counts": 32.0
+   }
+  },
+  {
+   "pattern": "(b) lab-axes pattern, U from the foci calibration at stage 6 / 96 deg (tag x6_lab_axes_U_from_foci_v2); NOT pattern (a)",
+   "slm_pattern_file": "results_small/polarizer_followup_20261115_1342/two_foci_x6_lab_axes_U_from_foci_v2_phase_uint8.npy",
+   "source": "results_small/best_two_foci_three_images/image_polarizer_along_x_stage_6deg.npy",
+   "source_key": "whole array",
+   "analyzer_angle_deg": 6.0,
+   "stage_angle_deg": 6.0,
+   "exposure": 24.0,
+   "what": "polarizer at stage 6 deg",
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "recorded": "2026-11-15T14:05:43",
+   "file": "pattern_b_v2_image_polarizer_along_x_stage_6deg.npy",
+   "png": "pattern_b_v2_image_polarizer_along_x_stage_6deg_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 116.0,
+   "fraction_of_pixels_reading_0": 0.93359375,
+   "focus_A": {
+    "peak_yx": [
+     48,
+     56
+    ],
+    "peak_count": 116.0,
+    "window_3x3_counts": 765.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     78,
+     75
+    ],
+    "peak_count": 3.0,
+    "window_3x3_counts": 16.0
+   }
+  },
+  {
+   "pattern": "(b) lab-axes pattern, U from the foci calibration at stage 6 / 96 deg (tag x6_lab_axes_U_from_foci_v2); NOT pattern (a)",
+   "slm_pattern_file": "results_small/polarizer_followup_20261115_1342/two_foci_x6_lab_axes_U_from_foci_v2_phase_uint8.npy",
+   "source": "results_small/best_two_foci_three_images/image_polarizer_along_y_stage_96deg.npy",
+   "source_key": "whole array",
+   "analyzer_angle_deg": 96.0,
+   "stage_angle_deg": 96.0,
+   "exposure": 24.0,
+   "what": "polarizer at stage 96 deg",
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "recorded": "2026-11-15T14:05:43",
+   "file": "pattern_b_v2_image_polarizer_along_y_stage_96deg.npy",
+   "png": "pattern_b_v2_image_polarizer_along_y_stage_96deg_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 242.0,
+   "fraction_of_pixels_reading_0": 0.85589599609375,
+   "focus_A": {
+    "peak_yx": [
+     45,
+     59
+    ],
+    "peak_count": 4.0,
+    "window_3x3_counts": 38.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     72
+    ],
+    "peak_count": 242.0,
+    "window_3x3_counts": 1617.0
+   }
+  },
+  {
+   "pattern": "(b) lab-axes pattern, U from the foci calibration at stage 6 / 96 deg (tag x6_lab_axes_U_from_foci_v2); NOT pattern (a)",
+   "slm_pattern_file": "results_small/polarizer_followup_20261115_1342/two_foci_x6_lab_axes_U_from_foci_v2_phase_uint8.npy",
+   "source": "results_small/best_two_foci_three_images/image_no_polarizer.npy",
+   "source_key": "whole array",
+   "analyzer_angle_deg": null,
+   "stage_angle_deg": null,
+   "exposure": 24.0,
+   "what": "no polarizer in the beam",
+   "exposure_units": "camera ExposureTime value (microseconds for these Basler cameras; see manuscript_values.md)",
+   "recorded": "2026-11-15T15:12:15",
+   "file": "pattern_b_v2_image_no_polarizer.npy",
+   "png": "pattern_b_v2_image_no_polarizer_counts.png",
+   "shape": [
+    128,
+    128
+   ],
+   "pixel_format": "Mono12",
+   "units": "camera counts (0..4095), not scaled, not dark-subtracted",
+   "max_count": 235.0,
+   "fraction_of_pixels_reading_0": 0.77374267578125,
+   "focus_A": {
+    "peak_yx": [
+     48,
+     56
+    ],
+    "peak_count": 124.0,
+    "window_3x3_counts": 850.0
+   },
+   "focus_B": {
+    "peak_yx": [
+     80,
+     72
+    ],
+    "peak_count": 235.0,
+    "window_3x3_counts": 1540.0
+   }
+  }
+ ]
+}

@@ -70,31 +70,35 @@ Section~\ref{sec:polframe} relies on this property.
 \section{Experimental and data-processing details}
 \label{sec:experiment}
 \paragraph{Input side.}
-The SLM \note{model} has $1920\times1200$ pixels with a pitch of $8\,\mu$m.
+The SLM (Meadowlark Optics, $1920\times1200$ pixels) has a pixel pitch of $8\,\mu$m.
 We use a region of $640\times640$ pixels, grouped into $128\times128$ macro-pixels of $5\times5$ pixels each.
 The relay L1--L2 demagnifies the SLM plane by $150/400$, so this region is $1.92$\,mm wide in the back focal plane of O1.
 The NA-limited disk in that plane has a diameter of $2\,\mathrm{NA}\,f=1.76$\,mm, where $f=4$\,mm is the focal length of the objective.
 
 \paragraph{Detection and frame processing.}
-Both cameras have a pixel pitch of $3.45\,\mu$m.
+BS2 is a pellicle beam splitter (Thorlabs BP245B1) at $45^\circ$ incidence.
+The image-plane camera is on its reflected port, and the Fourier-plane camera is on its transmitted port.
+Both cameras (Basler daA1920-160um) have a pixel pitch of $3.45\,\mu$m.
 The image-plane camera records the output facet at a magnification of 50, which corresponds to 69\,nm per camera pixel.
 We crop a square of $798\times798$ camera pixels centered on the core and resize it to $128\times128$ pixels by bilinear interpolation.
 The side of this square is $2.2a$, so one pixel of the resized frame corresponds to $0.430\,\mu$m on the facet.
-The Fourier-plane camera samples the back focal plane of O2 with an effective pixel pitch of $4.31\,\mu$m.
-We crop a square of $448\times448$ camera pixels, of side $2.2\,\mathrm{NA}\,f$, and resize it to $128\times128$ pixels.
+The Fourier-plane camera samples the back focal plane of O2 with the same pixel pitch.
+We crop a square of $562\times562$ camera pixels, of side $2.2\,\mathrm{NA}\,f$, and resize it to $128\times128$ pixels.
 One pixel of this frame corresponds to $15.1\,\mu$m in the back focal plane.
 In both resized frames, the region $\Omega_F$ of the main text is a centered disk of radius $58.1$ pixels.
 It covers the core in the image plane and the NA-limited disk in the Fourier plane.
 
 \paragraph{Acquisition.}
 After each SLM update we wait 60\,ms, and then both cameras expose simultaneously.
-\note{exposure times and camera gain: values and units}
-The data of the time benchmark (Fig.~6 of the main text) consist of two sets of $6032=4M$ SLM patterns.
+The probe patterns are $6032=4M$ phase masks that were designed once, in advance.
+Their phases were optimized with the calibrated input side of the forward model, so that the input modal vectors $\mathbf{z}_{\mathrm{in}}$ excite the guided modes evenly and overlap little with one another.
+The participation ratio of the modal covariance $Z_{\mathrm{in}}Z_{\mathrm{in}}^{\dagger}$ is 744 for these masks, compared with 431 for random phase masks.
+The data of the time benchmark (Fig.~6 of the main text) consist of two recordings of these patterns.
 The first set was recorded before the fiber was displaced and serves the joint fit (Section~\ref{sec:jointfit}).
-The second set was recorded after a motorized stage displaced the fiber by 5\,mm \note{confirm what the 5 mm translation moves}.
+The second set was recorded after a motorized stage displaced a point along the fiber by 5\,mm.
+The displacement changed the bend of the fiber, while both facets stayed fixed.
 The fast ADMM retrieval uses random subsets of this second set.
-The demonstrations of Figs.~3--5 of the main text use a separate acquisition of 6000 SLM patterns.
-\note{probe patterns: the scripts load precomputed ``mode-excitation'' masks rather than random phases; describe how these masks were generated}
+The demonstrations of Figs.~3--5 of the main text use a separate recording of the same patterns.
 
 %------------------------------------------------------------------------------
 \section{Joint fit of the TM and the optics}
@@ -102,17 +106,18 @@ The demonstrations of Figs.~3--5 of the main text use a separate acquisition of 
 The joint fit minimizes the loss $L_{\mathrm{PCC}}$ of the Methods with the Adam optimizer.
 The trainable parameters are the following.
 \begin{itemize}
-\item The TM, $T\in\mathbb{C}^{M\times M}$, initialized to the straight-fiber prior $T_0$.
-\item The complex SLM mask $A(x,y)$ on the $128\times128$ macro-pixel grid, initialized to one.
-\item The polarization angle $\theta_{\mathrm{in}}$ of the incident field and a polarization rotation after the SLM, both initialized to zero.
-\item Four sets of eight Zernike coefficients (Noll indices 4--11), initialized to zero. The sets act before and after the input objective, in the image plane, and in the Fourier plane.
-\item Scale and offset parameters of the three numerical Fourier transforms of the model, initialized to their nominal values. Each transform has two scale factors and four center offsets.
+\item The TM, $T\in\mathbb{C}^{M\times M}$.
+\item The complex SLM mask $A(x,y)$ on the $128\times128$ macro-pixel grid.
+\item The polarization angle $\theta_{\mathrm{in}}$ of the incident field and a polarization rotation after the SLM.
+\item Four sets of eight Zernike coefficients (Noll indices 4--11). The sets act before and after the input objective, in the image plane, and in the Fourier plane.
+\item Scale and offset parameters of the three numerical Fourier transforms of the model. Each transform has two scale factors and four center offsets.
+\item For the test of Section~\ref{sec:polframe} only: the camera weight $b$ of Eq.~\eqref{eq:camweights}, parameterized as $b=\tanh\beta$.
 \end{itemize}
 The three transforms connect the SLM to the input facet, the image plane to the Fourier plane, and the Fourier plane back to the image plane.
-The learning rate is $0.01$ for $T$ and $0.005$ for all other parameters.
-We train for 100 epochs with mini-batches of 256 SLM patterns for the benchmark data and 512 for the data of Figs.~3--5.
+The TM starts from the straight-fiber prior $T_0$; the other initial values, the learning rates, and the batch sizes are listed in the published code.
+We train for 100 epochs.
 In each case, $95\%$ of the patterns are used for training and $5\%$ are held out.
-On the held-out patterns, the PCC between predicted and measured intensities is \note{value} in the image plane and \note{value} in the Fourier plane.
+For the dataset of Section~\ref{sec:polframe}, the PCC between predicted and measured intensities on the held-out patterns is $0.913$ in the image plane and $0.929$ in the Fourier plane.
 After the fit, the operators $Z_{\mathrm{in}}$ and $P_{c,p}$ are computed once from the fitted parameters and kept fixed.
 
 %------------------------------------------------------------------------------
@@ -171,8 +176,7 @@ For a target pixel $\mathbf{r}_t$ in plane $p$, we maximize
 \label{eq:focusobj}
 F_p(\mathbf{r}_t)=\frac{\langle I_{\mathrm{pred},p}\rangle_{W(\mathbf{r}_t)}}{\langle I_{\mathrm{pred},p}\rangle_{\Omega_F\setminus W(\mathbf{r}_t)}},
 \end{equation}
-where $W(\mathbf{r}_t)$ is a window of $(2h+1)\times(2h+1)$ pixels centered on the target.
-We use $h=1$ in the time benchmark and $h=0$ in Figs.~3--5 \note{confirm $h$ for the cross-plane and joint-fit demonstrations}.
+where $W(\mathbf{r}_t)$ is a window of at most $3\times3$ pixels centered on the target.
 The objective differs from the reported PBR, which is evaluated on the brightest pixel of the measured focus (Section~\ref{sec:pbr}).
 
 \paragraph{Several foci.}
@@ -242,7 +246,7 @@ The expected enhancement of the summed intensity is then
 \label{eq:eta_pol}
 \eta_{\mathrm{exp}}=\frac{\pi}{4}\,(N_{\mathrm{ch}}-1)(1-\alpha)+1.
 \end{equation}
-\note{cite Shen 2016 and Woo 2022 here; entries to be added to references.bib}
+See also Refs.~\cite{shen2016,woo2022}.
 
 The fraction $\alpha$ can be estimated from the probe data without a polarizer.
 If the two components are independent, fully developed speckle patterns, the contrast of their sum over the SLM patterns is $\sqrt{1-2\alpha(1-\alpha)}$.
@@ -255,7 +259,6 @@ The measured $\eta$ is $91\%$ of these values in both planes.
 %------------------------------------------------------------------------------
 \section{Polarization frame of the retrieved TM}
 \label{sec:polframe}
-\note{author note: the main text describes the remaining polarization freedom as a rotation of the axes. In the forward model, and in the simulations below, it is a general unitary Jones matrix; a rotation is the special case of Eq.~\eqref{eq:theta}. The main-text wording needs a decision.}
 
 \paragraph{Remaining freedom.}
 In the basis of Section~\ref{sec:modes}, the guided modes span the scalar LP profiles multiplied by both polarization components.
@@ -272,9 +275,86 @@ The laboratory field and the field predicted by the retrieved TM are related by
 \end{equation}
 with a complex constant $c$ and the same $U$ at every pixel and in both planes.
 The retrieved axes $x'$ and $y'$ correspond to two orthogonal polarization states in the laboratory, which are elliptical in general.
-A rotation of the axes by an angle $\theta$ is the special case $U=R(\theta)$.
+The main text refers to this freedom as a global rotation; a rotation of the axes by an angle $\theta$ is the special case $U=R(\theta)$.
+We verified this freedom in simulation with the forward model and the fast ADMM retrieval of the Methods, on a scaled-down fiber with $a=8\,\mu$m and $M=156$ modes.
+For each of 20 random TMs, the TM was retrieved from $3M$ polarization-summed, dual-plane intensity patterns.
+In every case, the true and predicted fields were related by Eq.~\eqref{eq:frame} with a unitary $U$, and the relative residual was below $10^{-10}$.
+The matrix $U$ was not a rotation: the $x'$ state was elliptical, with an ellipticity angle of median magnitude $17^\circ$ (range $2^\circ$ to $36^\circ$).
 
-\paragraph{Polarizer measurements.}
+\paragraph{Polarization-dependent detection.}
+The freedom of Eq.~\eqref{eq:frame} requires that both cameras weight the two polarization components equally.
+In our setup they do not, because the transmittance and the reflectance of BS2 depend on the polarization.
+Let $x$ denote the polarization in the plane of incidence of BS2 and $y$ the perpendicular one.
+The image-plane camera records $R_x|E_x|^2+R_y|E_y|^2$ and the Fourier-plane camera records $T_x|E_x|^2+T_y|E_y|^2$, each for the field in its own plane.
+Here, $R_{x,y}$ and $T_{x,y}$ are the reflectances and transmittances of BS2.
+The rescaling $E_x\to\sqrt{R_x}\,E_x$, $E_y\to\sqrt{R_y}\,E_y$ is a uniform Jones matrix, so the TM can absorb it.
+The data therefore determine only the weights of one camera relative to the other, and we write
+\begin{equation}
+\label{eq:camweights}
+I_{\mathrm{im}}=|E_x|^2+|E_y|^2,\qquad I_{\mathrm{F}}\propto(1+b)\,|E_x|^2+(1-b)\,|E_y|^2,\qquad \frac{1+b}{1-b}=\frac{T_x\,R_y}{T_y\,R_x}.
+\end{equation}
+The loss $L_{\mathrm{PCC}}$ does not depend on the constant of proportionality.
+The parameter $b$ is fitted together with the TM (Section~\ref{sec:jointfit}).
+The retrieved TM then describes the field with its components scaled by $\sqrt{R_x}$ and $\sqrt{R_y}$.
+
+For $b\neq0$, Eq.~\eqref{eq:camweights} reduces the freedom of Eq.~\eqref{eq:frame}.
+A unitary matrix $U$ leaves both intensities unchanged for every field only if it commutes with $\mathrm{diag}(1+b,1-b)$.
+It is then diagonal, $U=\mathrm{diag}(e^{i\alpha},e^{i\beta})$.
+The retrieved axes $x'$ and $y'$ therefore coincide with the axes $x$ and $y$ of BS2.
+Two freedoms remain: the phase $\alpha-\beta$ between the two components, and the exchange of the two labels together with $b\to-b$.
+The phase does not affect fields polarized along $x$ or $y$.
+It can be measured with a polarizer, as described next.
+
+The manufacturer's typical data for BS2 at $632.8$\,nm are $T_x=72.5\%$, $T_y=48.2\%$, $R_x=27.4\%$, and $R_y=50.2\%$.
+They give $(1+b)/(1-b)=2.75$, that is, $b=0.47$.
+The typical curves show thin-film fringes with a period of about $50$\,nm, over which $b$ varies between $0.36$ and $0.69$.
+The value of an individual pellicle therefore depends on its thickness.
+
+\paragraph{Phase between the two components.}
+For $b\neq0$, let $E_x$ and $E_y$ be the Fourier-plane components predicted by the retrieved TM.
+The field in front of a polarizer at the Fourier-plane camera is then
+\begin{equation}
+\label{eq:polfield}
+\mathbf{E}_{\mathrm{pol}}=c\left(\sqrt{1+b}\;e^{i\delta}E_x,\ \sqrt{1-b}\;E_y\right),
+\end{equation}
+with a complex constant $c$ and the remaining phase $\delta=\alpha-\beta$.
+This phase includes the retardance of BS2 in transmission, so it refers to the field at this camera.
+A polarizer at an angle $a$ from the $x$ axis transmits $I_a=|\cos a\,E_{\mathrm{pol},x}+\sin a\,E_{\mathrm{pol},y}|^2$, which gives
+\begin{equation}
+\label{eq:Ia}
+I_a=g\left[\cos^2\!a\;A+\sin^2\!a\;B+\sin2a\,\left(C\cos\delta-S\sin\delta\right)\right].
+\end{equation}
+Here, $g=|c|^2$, $A=(1+b)|E_x|^2$, $B=(1-b)|E_y|^2$, and $C+iS=\sqrt{1-b^2}\,E_xE_y^{*}$.
+The images $A$, $B$, $C$, and $S$ are computed from the retrieved TM for the displayed SLM pattern.
+Equation~\eqref{eq:Ia} is linear in $g\cos\delta$ and $g\sin\delta$, and their coefficient is largest at $a=45^\circ$.
+A single image of one speckle pattern at $45^\circ$ therefore determines $\delta$.
+We fit
+\begin{equation}
+\label{eq:phasefit}
+I_{45^\circ}(\mathbf{r})=c_0+c_A\,A(\mathbf{r})+c_B\,B(\mathbf{r})+c_C\,C(\mathbf{r})-c_S\,S(\mathbf{r})
+\end{equation}
+by linear least squares over the pixels of $\Omega_F$, and obtain $\delta=\operatorname{atan2}(c_S,c_C)$.
+The constant $c_0$ absorbs a background.
+Fitting $A$ and $B$ with separate coefficients absorbs a small error of the polarizer angle.
+The images of several SLM patterns can enter the same fit.
+The polarizer must be at $45^\circ$ and not at $135^\circ$: the other diagonal changes the result by $180^\circ$.
+With a second image at $135^\circ$, the difference $I_{45^\circ}-I_{135^\circ}=2g\left(C\cos\delta-S\sin\delta\right)$ contains neither $A$ and $B$ nor the background.
+Once $\delta$ is known, Eq.~\eqref{eq:polfield} gives both components of the field at the camera, so a focus can be designed in any polarization state.
+
+We tested Eq.~\eqref{eq:phasefit} in simulation on the scaled-down fiber described above, with $b=0.70$ in the detection and in the retrieval.
+An unknown retardance was added to the $x$ component in front of the polarizer.
+For 10 fibers and 16 SLM patterns each, we added noise to the polarizer images and compared the estimate with the true $\delta$.
+The median error of a single image was $0.12^\circ$ for a noise of $5\%$ of the mean intensity and $0.36^\circ$ for a noise of $20\%$.
+At a noise of $5\%$, a polarizer at $48^\circ$ that was analyzed as $45^\circ$ gave the same error.
+In practice, the accuracy is limited by how well the retrieved TM predicts the speckle pattern.
+We therefore repeated the test with a TM retrieved from noisy data and a fiber that had drifted since the retrieval.
+The predicted and the true image at $45^\circ$ then had a PCC of $0.94$.
+The median error was $3.9^\circ$ for a single image ($8.4^\circ$ at the 90th percentile), $1.6^\circ$ for four images, and $1.1^\circ$ for 16 images.
+With two polarizer angles per pattern, it was $1.8^\circ$ for one pattern and $0.5^\circ$ for 16 patterns.
+An error of $8^\circ$ in $\delta$ misplaces at most $0.5\%$ of the power of a designed polarization state.
+
+\paragraph{Test of the frame with a polarizer.}
+To test that the frame is diagonal, we do not assume Eq.~\eqref{eq:polfield} but fit a general unitary matrix to images at four polarizer angles.
 We describe the polarization at each pixel by the Stokes parameters $S_0=|E_x|^2+|E_y|^2$, $S_1=|E_x|^2-|E_y|^2$, $S_2=2\,\mathrm{Re}(E_xE_y^*)$, and $S_3=-2\,\mathrm{Im}(E_xE_y^*)$.
 A linear polarizer at angle $a$ in front of the camera transmits
 \begin{equation}
@@ -293,7 +373,6 @@ D_i(\mathbf{r})=g\,\mathbf{R}_i\cdot\mathbf{s}(\mathbf{r}),\qquad i=1,2.
 \end{equation}
 Here, $\mathbf{R}_1$ and $\mathbf{R}_2$ are the first two rows of a rotation matrix $R\in\mathrm{SO}(3)$, and $g=|c|^2$ is an unknown gain.
 
-\paragraph{Closed-form solution.}
 Equation~\eqref{eq:stokesmodel} is linear in $g\,\mathbf{R}_i$, and its least-squares solution over the pixels of $\Omega_F$ is
 \begin{equation}
 \label{eq:lsq}
@@ -309,60 +388,72 @@ Writing $R$ as a rotation by an angle $\phi$ about the unit axis $\mathbf{n}$, t
 with the Pauli matrices $\sigma_x$, $\sigma_y$, and $\sigma_z$.
 The first column of $R$ is the laboratory Stokes vector of the $x'$ state.
 Its azimuth is $\psi=\tfrac{1}{2}\arg(R_{11}+iR_{21})$ and its ellipticity angle is $\chi=\tfrac{1}{2}\arcsin R_{31}$.
-Replacing $T$ by $D(\hat{U})\,T$ aligns the axes of the retrieved TM with the laboratory axes.
 
-\paragraph{Rotation of the axes.}
-If the frames differ by a rotation, $U=R(\theta)$, then $S_1^{\mathrm{lab}}+iS_2^{\mathrm{lab}}=g\,e^{2i\theta}(S_1+iS_2)$ and Eq.~\eqref{eq:lsq} reduces to
-\begin{equation}
-\label{eq:theta}
-\tan2\theta=\frac{\sum_{\mathbf{r}}\left(D_2S_1-D_1S_2\right)}{\sum_{\mathbf{r}}\left(D_1S_1+D_2S_2\right)},
-\end{equation}
-where the quadrant of $2\theta$ is set by the signs of the numerator and the denominator.
-The angle $\theta$ is defined modulo $180^\circ$ and is the polarizer angle that transmits the $x'$ component.
-Whether a rotation is sufficient can be tested with the same data: the third components of $\mathbf{a}_1$ and $\mathbf{a}_2$ vanish for a rotation.
-
-\paragraph{Number of images.}
-Equation~\eqref{eq:lsq} uses every pixel of a speckle pattern, so one SLM pattern is sufficient.
-Three images are also sufficient, since $D_2=2I_{45^\circ}-I_{0^\circ}-I_{90^\circ}$.
-With two images, at $0^\circ$ and $45^\circ$, each image is fitted to $\tfrac{g}{2}(S_0+\mathbf{R}_i\cdot\mathbf{s})$ with $S_0$ taken from the model.
-For a rotation of the axes, a single image suffices in the same way.
-The four-image differences are preferable in practice, because they cancel $S_0$ and any polarization-independent background.
-
-\paragraph{Simulation.}
-We tested these relations with the forward model and the fast ADMM retrieval of the Methods on a scaled-down fiber.
-The fiber has $a=8\,\mu$m, which gives $M=156$ modes, and the optics are otherwise those of the experiment.
-For each of 20 random TMs, we retrieved the TM from $3M$ polarization-summed, dual-plane intensity patterns.
-The retrieved TMs reproduced held-out intensities with a PCC above $0.9999$.
-In every case, the true and predicted fields were related by Eq.~\eqref{eq:frame}, with a relative residual below $10^{-10}$ and a unitary $U$.
-The matrix $U$ was not a rotation: the ellipticity angle of the $x'$ state had a median magnitude of $17^\circ$ and ranged from $2^\circ$ to $36^\circ$.
-
-We then simulated polarizer images of one random SLM pattern with additive noise of $5\%$ of the mean intensity.
-We define the frame error as half the angle, on the Poincar\'e sphere, between the estimated and the true frame.
-For a rotation of the axes, this error equals the error of $\theta$.
-The frame error of Eqs.~\eqref{eq:lsq}--\eqref{eq:jones} was $0.06^\circ$ with four images and $0.08^\circ$ with three or two images [Fig.~\ref{fig:polframe}(d)].
-
-To test the separation of two foci, we optimized an SLM pattern for an $x'$-polarized focus A and a $y'$-polarized focus B.
-The objective of Section~\ref{sec:slm} was complemented by a penalty on the cross-polarized intensity inside each focus window.
-We then computed the fraction of each focus power that a rotating polarizer transmits, using the true field.
-With the TM as retrieved, the two fractions differed by at most $0.83$ (median over the 20 fibers; range $0.31$ to $1.00$).
-The best polarizer angle agreed with the predicted azimuth $\hat{\psi}$ within $0.7^\circ$ [Fig.~\ref{fig:polframe}(b)].
-After replacing $T$ by $D(\hat{U})\,T$, foci designed along the laboratory axes were separated by $0.999$ at $0^\circ$ and at $90^\circ$ [Fig.~\ref{fig:polframe}(c)].
-
-As a control, we constructed TMs whose frame differs from the laboratory frame by a rotation only.
-Equation~\eqref{eq:theta} recovered $\theta$ with a mean error of $0.02^\circ$ from four images, $0.03^\circ$ from two, and $0.05^\circ$ from one.
-The polarizer angle of best separation agreed with $\hat{\theta}$ within $0.8^\circ$, and the separation at $\hat{\theta}$ was $0.999$ [Fig.~\ref{fig:polframe}(a)].
-Without the cross-polarization penalty, the best polarizer angle deviated from $\theta$ by $2.7^\circ$ on average.
-The reason is a residual cross-polarized field at each focus, which tilts its polarization.
-
-\begin{figure}[h]
+\begin{figure}[t]
 \centering
-\includegraphics[width=0.92\textwidth]{figures/polarization_frame_simulation.png}
-\caption{\textbf{Simulated determination of the polarization frame} (fiber with $M=350$ modes; noise of $5\%$ in the polarizer images). (a)--(c) Fraction of the power of two foci, A and B, transmitted by a polarizer, versus polarizer angle. (a) The frame of the TM differs from the laboratory frame by a rotation; dashed lines mark $\hat{\theta}$ of Eq.~\eqref{eq:theta} and $\hat{\theta}+90^\circ$. (b) TM as retrieved; dashed lines mark the predicted azimuth $\hat{\psi}$ and $\hat{\psi}+90^\circ$, and the dotted line marks the angle that Eq.~\eqref{eq:theta} returns. (c) After the correction $T\to D(\hat{U})\,T$, with foci designed along the laboratory axes. (d) Frame error versus camera noise for different numbers of polarizer images (mean over 20 fibers with $M=156$ and ten SLM patterns each).}
-\label{fig:polframe}
+\includegraphics[width=0.95\textwidth]{figures/polarization_axes_experiment.png}
+\caption{\textbf{Polarization frame with the camera weight in the forward model.} (a,b) Fourier-plane camera images of one SLM pattern, designed with the retrieved TM alone for a focus A polarized along $x'$ (upper left) and a focus B polarized along $y'$ (lower right). The polarizer in front of the camera is at stage angles of $6^\circ$ and $96^\circ$. Each image is normalized to its maximum (exposure $192\,\mu$s). (c) Angle between the two polarizations of five pairs of orthogonal, linearly polarized foci, measured behind the unequal weights, against the designed orientation of the pair. The line is a linear fit.}
+\label{fig:polexp}
 \end{figure}
 
 \paragraph{Experiment.}
-\note{to be added: polarizer images at $0^\circ$, $45^\circ$, $90^\circ$, and $135^\circ$ of one SLM pattern, the resulting $\hat{U}$ or $\hat{\theta}$, and the separation of the two foci before and after the correction. In the existing polarizer frames of Fig.~3 the polarizer shifts the image by about 4 pixels, so the four images must be registered before they are subtracted}
+We tested Eq.~\eqref{eq:camweights} on a separate recording of the 6032 probe patterns, made with no polarizer in the detection path.
+The joint fit of Section~\ref{sec:jointfit} was run for 200 epochs with $b$ as an additional parameter, starting from $b=0.47$, $-0.47$, and $0$.
+The three runs converged to $|b|=0.701$, within $0.0002$; the sign only selects which component is labelled $x'$.
+Compared with a fit with $b=0$ and otherwise identical settings, the held-out PCC rose from $0.915$ to $0.956$ in the image plane and from $0.931$ to $0.974$ in the Fourier plane.
+The three retrieved TMs have the same polarization axes, within $0.1^\circ$ on the Poincar\'e sphere, and differ only in the phase between $x'$ and $y'$.
+The axes of two TMs fitted with $b=0$ lie $48^\circ$ and $80^\circ$ away from them on the sphere, as Eq.~\eqref{eq:frame} allows.
+The fitted $b$ exceeds the typical value of $0.47$ and lies at the upper end of the range over one fringe.
 
+For verification only, we then placed a linear polarizer on a motorized rotation stage in front of the Fourier-plane camera.
+All angles below are stage angles.
+First, we recorded 104 SLM patterns behind the polarizer at $0^\circ$, $45^\circ$, $90^\circ$, and $135^\circ$.
+We fitted Eq.~\eqref{eq:stokesmodel} to these images, extended by the two weights of Eq.~\eqref{eq:camweights}.
+The fitted $U$ was diagonal: the cross terms carried $0.01\%$ of the power, and the ellipticity angle of the $x'$ state was $0.0^\circ$.
+The fitted weights correspond to $|b|=0.706$.
+The images at $45^\circ$ and $135^\circ$ of all 104 patterns gave $\delta=-42.7^\circ$, and $-42.6^\circ$ and $-42.7^\circ$ for the two halves of the patterns.
+Two foci designed with this phase to be linearly polarized at $45^\circ$ and $135^\circ$ at the polarizer had $99.9\%$ and $0.4\%$ of their power at $45^\circ$, at the short exposure.
+\note{to be added: $\delta$ from single images at $45^\circ$ of the 104 recorded patterns (offline analysis on the lab PC)}
+
+Second, we optimized one SLM pattern for a focus A polarized along $x'$ and a focus B polarized along $y'$, using the retrieved TM alone.
+We measured the power of each focus in its $3\times3$-pixel window behind the polarizer at $6^\circ$ and at $96^\circ$, and denote by $\tau$ the share recorded at $6^\circ$.
+The shares were $\tau_A=0.1\%$ and $\tau_B=96.9\%$, a difference of $0.968$.
+The blocked focus was evaluated at an exposure 32 times longer than that of the transmitted one, at which it lies above the dark level of the camera.
+The polarizer extinguished focus A at $4.5^\circ\pm0.2^\circ$ and focus B at $99.1^\circ\pm0.7^\circ$.
+The minimum of focus B was $3.6\%$ of its maximum, which bounds its ellipticity in front of BS2 to about $4.5^\circ$.
+For a TM fitted with $b=0$, the same test at $0^\circ$ and $90^\circ$ gave a difference of $0.70$, and one focus was elliptically polarized (degree of linear polarization $0.72$).
+
+Third, we located the axes of Eq.~\eqref{eq:camweights} on the stage scale.
+Unequal weights preserve the angle between two orthogonal linear states only if the states lie on the axes of the weights.
+We designed five pairs of orthogonal, linearly polarized foci whose common orientation was stepped over $16^\circ$.
+The measured angle between the two polarizations of a pair fell from $106.0^\circ$ to $72.9^\circ$ and crossed $90^\circ$ where the pair lay at $4.9^\circ$ and $94.9^\circ$ ($\pm0.2^\circ$).
+With the weights removed, $x'$ and $y'$ lie at $94.1^\circ$ and $6.6^\circ$, within $2^\circ$ of these axes.
+A fit of the weights to the ten measured orientations gave $|b|=0.737\pm0.006$.
+Finally, a fixed polarizer, aligned by hand with a laboratory axis, was parallel to the rotating polarizer at $95.1^\circ$.
+The axes of Eq.~\eqref{eq:camweights} thus agree with the laboratory axes within the accuracy of this alignment.
+Figure~\ref{fig:polexp} shows the two foci and the pairs, and Table~\ref{tab:polframe} summarizes the results.
+
+\begin{table}[h]
+\centering
+\caption{\textbf{Polarization frame with the camera weight in the forward model.} Angles are stage angles of the rotating polarizer.}
+\label{tab:polframe}
+\small
+\begin{tabular}{p{0.31\textwidth}p{0.25\textwidth}p{0.36\textwidth}}
+\toprule
+Quantity & Expected & Measured \\
+\midrule
+$|b|$ from the joint fit & $0.47$ (range $0.36$--$0.69$) & $0.701$ (three runs, within $0.0002$) \\
+$|b|$ at the polarizer & equal to the fitted value & $0.706$ (speckle), $0.737\pm0.006$ (pairs of foci) \\
+Cross-term power of $U$ & $0$ & $0.01\%$ \\
+Axes of the weights & laboratory axes & $4.9^\circ$ and $94.9^\circ$; fixed polarizer at $95.1^\circ$ \\
+Axes $x'$ and $y'$ & axes of the weights & $94.1^\circ$ and $6.6^\circ$ \\
+Share of a focus at its orientation & $100\%$ & $99.9\%$ (A), $96.9\%$ (B) \\
+Phase between $x'$ and $y'$ & free & $-42.7^\circ$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\clearpage
 \bibliography{references}
 \end{document}

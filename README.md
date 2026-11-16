@@ -34,8 +34,13 @@ data/                  Published H5 pointers + download script. Mode-field
 baselines/             RAF2-1 and scalar ADMM pixel-basis baselines.
 lab/                   Hardware acquire / wavefront-control / replay. Cannot
                        run without the private parent repo and the bench.
+lab/polarization/      Rotating-polarizer tests of the polarization frame
+                       (Supplementary Section S7) and the PBR background check.
 paper/                 Manuscript, figures, and figure scripts.
+paper/simulations/     Simulations behind Supplementary Section S7.
 results/               Small CSVs/JSON/MD consumed by the figure scripts.
+results/polarization/  Reports, summaries and frames of the polarizer tests.
+results/pbr_bias/      Check of the PBR background level (16 Nov 2026).
 tests/                 Import smoke + a small synthetic ADMM test.
 LICENSE, CITATION.cff, requirements.txt, .gitignore
 ```
@@ -176,9 +181,28 @@ python paper/make_focus_vs_time_figure.py
 
 Reads measured CSVs from `results/lab_replay/` and offline epoch tables from `results/offline/{modal,raf21,admm}/`. Writes `paper/figures/lab_focus_vs_accumulated_time.png` and `lab_focus_vs_accumulated_time_fourier_plane.png`.
 
+### Polarization frame (Supplementary Section S7)
+
+```bash
+python paper/make_polarization_figure.py
+python paper/simulations/sim_xy_phase.py --seeds 1,2,3,4,5,6,7,8,9,10
+```
+
+`make_polarization_figure.py` reads the camera frames in `results/polarization/figure_frames/` and writes `paper/figures/polarization_axes_experiment.png`. `sim_xy_phase.py` simulates the retrieval with the camera weight on a 156-mode fiber and estimates the remaining phase between the two polarization components from one polarizer image at 45°; its two result files are next to it. Both run on a CPU.
+
 ## The algorithms
 
 Detection is polarization-summed, `I = |E_x|² + |E_y|²`, for two planes at once (index 0 = image, index 1 = Fourier).
+
+**Camera weight (optional, Supplementary Section S7).** The beam splitter between the two cameras divides the two polarization components in different ratios. Intensity data fix only the weights of one camera relative to the other, so the image-plane camera keeps `|E_x|² + |E_y|²` and the Fourier-plane camera records `(1 + b)|E_x|² + (1 - b)|E_y|²`. With `b` in the forward model, the joint fit fixes the polarization axes of the retrieved TM to the axes of the beam splitter.
+
+```python
+tm_system.fourier_pol_weights = (1 + b, 1 - b)        # fixed b
+tm_system.enable_learnable_fourier_weights(b_init)    # or: fit b = tanh(beta) with the TM in optimize_tm_slm
+tm_system.fourier_weight_b()                          # current value
+```
+
+The default is `b = 0`. All focusing results and the benchmark of the paper use `b = 0`; only the test of the polarization axes uses a fitted `b`. The fast ADMM does not use the weight.
 
 **Algorithm 1 — `optimize_tm_admm_dual_plane` in `TM_retrieval_algos.py`.** Autograd-free modal ADMM. Closed-form TM update, then a joint polarization-preserving amplitude projection, then a leaky dual update `γ_t = 0.9^{⌊t/15⌋}`. Over-relaxation `ρ = 0` for the first 45 iterations, then `0.1`. The amplitude projection acts jointly on the two polarization components and therefore leaves their relative phase to the vector mode profiles, which is what allows a vectorial TM to be retrieved with no polarizer in the detection path.
 

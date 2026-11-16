@@ -1,0 +1,272 @@
+0
+Blink SDK was successfully constructed
+Camera 40237702: PixelFormat -> Mono12, ExposureTime -> 540.000
+Camera 40238131: PixelFormat -> Mono12, ExposureTime -> 675.000
+Image camera 40237702 (daA1920-160um): PixelFormat Mono12, BlackLevel 0.0, Gain 0.0, GainAuto Off, ExposureAuto Off
+Minimum exposure 24; E0 = 24; exposures [24.0, 96.0, 384.0, 1536.0]
+
+=== 1. Freshness ===
+Loaded 6032 optimized SLM patterns from <lab>\TM_lib\tm_motor_pcc_outputs\spectral_init_slm_masks.h5 (group 'mode_excitation_patterns')
+  attempt 1: correlation with the dataset frames, 8 masks: mean 0.021 (previous mask: 0.026); level now / dataset 2.84; 1496 min after the dataset
+  attempt 2: correlation with the dataset frames, 8 masks: mean 0.021 (previous mask: 0.025); level now / dataset 2.84; 1496 min after the dataset
+
+=== Freshness below 0.9: new dataset and new TM with the standard pipeline code, into new files ===
+Sampling 6032 optimized measurements into group 'experiment_0'
+Loading data from <lab>\TM_lib\measurement_focus_pbr_check_20261116_1139.h5, group: experiment_0
+Using dataset keys: PhaseMask, transmission_image, transmission_fourier
+Loaded data shapes:
+  SLM phase masks: (6032, 128, 128), dtype: uint8
+  Image intensities: (6032, 128, 128), dtype: uint16
+  Fourier intensities: (6032, 128, 128), dtype: uint16
+Converting uint8 phase masks to phase values (0-255 -> 0 to 2π*255/256)...
+slm_phase max: 6.258641719818115 | slm_phase min: 0.0
+
+Data split:
+  Training samples: 5730 (95.0%)
+  Test samples: 302 (5.0%)
+Calculating guided modes...
+Fiber V-number: 54.610
+Fiber is multi-mode.
+Loading mode_fields from <lab>\TM_lib\mode_fields_9d25c116.pt...
+Successfully loaded mode_fields with shape: torch.Size([1, 2, 128, 128, 1508])
+Sampling transmission matrices for 1508 modes...
+System initialized with 1508 guided modes
+Grid size: 128 x 128
+Aberration models initialized: ZoomFFT and 8 Zernike modes
+Performance optimizations: Pre-flattened mode fields for fast projection
+Starting Adam Optimization using TMMeasurementSystem internal parameters.
+Optimize Aberrations: True
+Image polarizer: no_pol
+Number of parameters to be optimized: 2290500
+Measurements: 5730 | Batches/Epoch: 12 | LR: 0.01
+rel_power: 0.9997053146362305
+Epoch 1/100: Train Loss=0.365241, Test Loss=0.174496, TM Norm=106.656517
+rel_power: 0.9962378740310669
+Epoch 2/100: Train Loss=0.261461, Test Loss=0.162910, TM Norm=132.545563
+rel_power: 0.9946127533912659
+Epoch 3/100: Train Loss=0.221072, Test Loss=0.157612, TM Norm=145.160889
+rel_power: 0.9942123293876648
+Epoch 4/100: Train Loss=0.201287, Test Loss=0.155111, TM Norm=152.406540
+rel_power: 0.9938333034515381
+Epoch 5/100: Train Loss=0.186908, Test Loss=0.154293, TM Norm=157.503677
+rel_power: 0.9937578439712524
+Epoch 6/100: Train Loss=0.175718, Test Loss=0.154043, TM Norm=161.463470
+rel_power: 0.9936838746070862
+Epoch 7/100: Train Loss=0.167205, Test Loss=0.153849, TM Norm=164.785324
+rel_power: 0.9936411380767822
+Epoch 8/100: Train Loss=0.160477, Test Loss=0.153734, TM Norm=167.730576
+rel_power: 0.9935750961303711
+Epoch 9/100: Train Loss=0.154645, Test Loss=0.153588, TM Norm=170.463135
+rel_power: 0.9937236905097961
+Epoch 10/100: Train Loss=0.149885, Test Loss=0.153582, TM Norm=173.060211
+rel_power: 0.9936662912368774
+Epoch 11/100: Train Loss=0.145863, Test Loss=0.153497, TM Norm=175.541122
+rel_power: 0.9936369061470032
+Epoch 12/100: Train Loss=0.142346, Test Loss=0.153351, TM Norm=177.963837
+rel_power: 0.9937418699264526
+Epoch 13/100: Train Loss=0.139330, Test Loss=0.153212, TM Norm=180.306900
+rel_power: 0.9936985373497009
+Epoch 14/100: Train Loss=0.136627, Test Loss=0.153091, TM Norm=182.614975
+rel_power: 0.9936707019805908
+Epoch 15/100: Train Loss=0.134351, Test Loss=0.152985, TM Norm=184.905670
+rel_power: 0.9936917424201965
+Epoch 16/100: Train Loss=0.132301, Test Loss=0.152772, TM Norm=187.151474
+rel_power: 0.9936825037002563
+Epoch 17/100: Train Loss=0.130579, Test Loss=0.152585, TM Norm=189.407776
+rel_power: 0.993743360042572
+Epoch 18/100: Train Loss=0.128934, Test Loss=0.152462, TM Norm=191.641586
+rel_power: 0.9937294721603394
+Epoch 19/100: Train Loss=0.127399, Test Loss=0.152336, TM Norm=193.869904
+rel_power: 0.9937795996665955
+Epoch 20/100: Train Loss=0.126076, Test Loss=0.152169, TM Norm=196.075180
+rel_power: 0.993857741355896
+Epoch 21/100: Train Loss=0.124761, Test Loss=0.152027, TM Norm=198.279221
+rel_power: 0.9938506484031677
+Epoch 22/100: Train Loss=0.123686, Test Loss=0.151859, TM Norm=200.470535
+rel_power: 0.9938766360282898
+Epoch 23/100: Train Loss=0.122510, Test Loss=0.151693, TM Norm=202.645798
+rel_power: 0.9938971996307373
+Epoch 24/100: Train Loss=0.121523, Test Loss=0.151531, TM Norm=204.788513
+rel_power: 0.9938415884971619
+Epoch 25/100: Train Loss=0.120619, Test Loss=0.151402, TM Norm=206.921112
+rel_power: 0.993828296661377
+Epoch 26/100: Train Loss=0.119814, Test Loss=0.151261, TM Norm=209.057541
+rel_power: 0.9939030408859253
+Epoch 27/100: Train Loss=0.118954, Test Loss=0.151096, TM Norm=211.148849
+rel_power: 0.9939515590667725
+Epoch 28/100: Train Loss=0.118056, Test Loss=0.151008, TM Norm=213.228897
+rel_power: 0.9939610958099365
+Epoch 29/100: Train Loss=0.117405, Test Loss=0.150816, TM Norm=215.283661
+rel_power: 0.9940077066421509
+Epoch 30/100: Train Loss=0.116728, Test Loss=0.150699, TM Norm=217.326447
+rel_power: 0.9940122961997986
+Epoch 31/100: Train Loss=0.116100, Test Loss=0.150652, TM Norm=219.350830
+rel_power: 0.9940447807312012
+Epoch 32/100: Train Loss=0.115421, Test Loss=0.150617, TM Norm=221.368454
+rel_power: 0.994067907333374
+Epoch 33/100: Train Loss=0.114967, Test Loss=0.150475, TM Norm=223.352051
+rel_power: 0.9941807389259338
+Epoch 34/100: Train Loss=0.114210, Test Loss=0.150409, TM Norm=225.338257
+rel_power: 0.99415123462677
+Epoch 35/100: Train Loss=0.113888, Test Loss=0.150291, TM Norm=227.296936
+rel_power: 0.9941415786743164
+Epoch 36/100: Train Loss=0.113304, Test Loss=0.150248, TM Norm=229.234070
+rel_power: 0.9940828680992126
+Epoch 37/100: Train Loss=0.112816, Test Loss=0.150155, TM Norm=231.193832
+rel_power: 0.9942642450332642
+Epoch 38/100: Train Loss=0.112452, Test Loss=0.150049, TM Norm=233.111343
+rel_power: 0.9941860437393188
+Epoch 39/100: Train Loss=0.112143, Test Loss=0.149960, TM Norm=235.038864
+rel_power: 0.9941628575325012
+Epoch 40/100: Train Loss=0.111548, Test Loss=0.149870, TM Norm=236.950363
+rel_power: 0.994357168674469
+Epoch 41/100: Train Loss=0.111238, Test Loss=0.149825, TM Norm=238.840637
+rel_power: 0.9943499565124512
+Epoch 42/100: Train Loss=0.110820, Test Loss=0.149726, TM Norm=240.722977
+rel_power: 0.9945209622383118
+Epoch 43/100: Train Loss=0.110291, Test Loss=0.149626, TM Norm=242.587067
+rel_power: 0.9943718314170837
+Epoch 44/100: Train Loss=0.109816, Test Loss=0.149552, TM Norm=244.430038
+rel_power: 0.9944156408309937
+Epoch 45/100: Train Loss=0.109836, Test Loss=0.149452, TM Norm=246.243118
+rel_power: 0.9943383932113647
+Epoch 46/100: Train Loss=0.109395, Test Loss=0.149356, TM Norm=248.058243
+rel_power: 0.9944005608558655
+Epoch 47/100: Train Loss=0.109056, Test Loss=0.149329, TM Norm=249.880844
+rel_power: 0.9944579005241394
+Epoch 48/100: Train Loss=0.108700, Test Loss=0.149248, TM Norm=251.670135
+rel_power: 0.9945107698440552
+Epoch 49/100: Train Loss=0.108352, Test Loss=0.149203, TM Norm=253.455750
+rel_power: 0.9945159554481506
+Epoch 50/100: Train Loss=0.108039, Test Loss=0.149104, TM Norm=255.201965
+rel_power: 0.9945997595787048
+Epoch 51/100: Train Loss=0.107767, Test Loss=0.149046, TM Norm=256.945099
+rel_power: 0.9945922493934631
+Epoch 52/100: Train Loss=0.107546, Test Loss=0.148979, TM Norm=258.677063
+rel_power: 0.9946175813674927
+Epoch 53/100: Train Loss=0.107126, Test Loss=0.148879, TM Norm=260.389465
+rel_power: 0.9945722818374634
+Epoch 54/100: Train Loss=0.106989, Test Loss=0.148860, TM Norm=262.094513
+rel_power: 0.9945865273475647
+Epoch 55/100: Train Loss=0.106817, Test Loss=0.148766, TM Norm=263.777771
+rel_power: 0.9946069121360779
+Epoch 56/100: Train Loss=0.106465, Test Loss=0.148673, TM Norm=265.490417
+rel_power: 0.9946081042289734
+Epoch 57/100: Train Loss=0.106299, Test Loss=0.148562, TM Norm=267.177063
+rel_power: 0.9946384429931641
+Epoch 58/100: Train Loss=0.106135, Test Loss=0.148535, TM Norm=268.841400
+rel_power: 0.9947022199630737
+Epoch 59/100: Train Loss=0.105710, Test Loss=0.148484, TM Norm=270.500031
+rel_power: 0.9946601986885071
+Epoch 60/100: Train Loss=0.105708, Test Loss=0.148426, TM Norm=272.153595
+rel_power: 0.9947097897529602
+Epoch 61/100: Train Loss=0.105263, Test Loss=0.148360, TM Norm=273.820862
+rel_power: 0.9948301315307617
+Epoch 62/100: Train Loss=0.105113, Test Loss=0.148305, TM Norm=275.456604
+rel_power: 0.9948515892028809
+Epoch 63/100: Train Loss=0.104879, Test Loss=0.148284, TM Norm=277.058868
+rel_power: 0.994920015335083
+Epoch 64/100: Train Loss=0.104646, Test Loss=0.148153, TM Norm=278.664886
+rel_power: 0.9948943257331848
+Epoch 65/100: Train Loss=0.104537, Test Loss=0.148143, TM Norm=280.244324
+rel_power: 0.9949437975883484
+Epoch 66/100: Train Loss=0.104421, Test Loss=0.148134, TM Norm=281.819611
+rel_power: 0.994960367679596
+Epoch 67/100: Train Loss=0.104180, Test Loss=0.148052, TM Norm=283.426147
+rel_power: 0.9949536323547363
+Epoch 68/100: Train Loss=0.103946, Test Loss=0.147906, TM Norm=285.003815
+rel_power: 0.9949931502342224
+Epoch 69/100: Train Loss=0.103889, Test Loss=0.147895, TM Norm=286.572601
+rel_power: 0.9950212836265564
+Epoch 70/100: Train Loss=0.103573, Test Loss=0.147759, TM Norm=288.151428
+rel_power: 0.9950401782989502
+Epoch 71/100: Train Loss=0.103503, Test Loss=0.147737, TM Norm=289.718384
+rel_power: 0.9949396848678589
+Epoch 72/100: Train Loss=0.103242, Test Loss=0.147631, TM Norm=291.258850
+rel_power: 0.9950117468833923
+Epoch 73/100: Train Loss=0.103084, Test Loss=0.147612, TM Norm=292.812347
+rel_power: 0.9951165914535522
+Epoch 74/100: Train Loss=0.102932, Test Loss=0.147593, TM Norm=294.332581
+rel_power: 0.9951468110084534
+Epoch 75/100: Train Loss=0.102741, Test Loss=0.147563, TM Norm=295.857544
+rel_power: 0.9951819777488708
+Epoch 76/100: Train Loss=0.102597, Test Loss=0.147494, TM Norm=297.383820
+rel_power: 0.9953188300132751
+Epoch 77/100: Train Loss=0.102436, Test Loss=0.147429, TM Norm=298.891083
+rel_power: 0.9952797889709473
+Epoch 78/100: Train Loss=0.102387, Test Loss=0.147419, TM Norm=300.399933
+rel_power: 0.9952790141105652
+Epoch 79/100: Train Loss=0.102211, Test Loss=0.147393, TM Norm=301.914551
+rel_power: 0.995267927646637
+Epoch 80/100: Train Loss=0.102049, Test Loss=0.147400, TM Norm=303.413177
+rel_power: 0.9952475428581238
+Epoch 81/100: Train Loss=0.101939, Test Loss=0.147373, TM Norm=304.895996
+rel_power: 0.9952691793441772
+Epoch 82/100: Train Loss=0.101714, Test Loss=0.147275, TM Norm=306.406860
+rel_power: 0.9952484369277954
+Epoch 83/100: Train Loss=0.101653, Test Loss=0.147190, TM Norm=307.883942
+rel_power: 0.9952626824378967
+Epoch 84/100: Train Loss=0.101548, Test Loss=0.147131, TM Norm=309.356293
+rel_power: 0.9954646825790405
+Epoch 85/100: Train Loss=0.101365, Test Loss=0.147061, TM Norm=310.830292
+rel_power: 0.9954259991645813
+Epoch 86/100: Train Loss=0.101270, Test Loss=0.147078, TM Norm=312.307190
+rel_power: 0.9954685568809509
+Epoch 87/100: Train Loss=0.101226, Test Loss=0.147055, TM Norm=313.775726
+rel_power: 0.9954016208648682
+Epoch 88/100: Train Loss=0.100888, Test Loss=0.146985, TM Norm=315.230835
+rel_power: 0.9954085946083069
+Epoch 89/100: Train Loss=0.100865, Test Loss=0.146949, TM Norm=316.676147
+rel_power: 0.9957087635993958
+Epoch 90/100: Train Loss=0.100691, Test Loss=0.146884, TM Norm=318.106537
+rel_power: 0.9955361485481262
+Epoch 91/100: Train Loss=0.100524, Test Loss=0.146876, TM Norm=319.519501
+rel_power: 0.9954168796539307
+Epoch 92/100: Train Loss=0.100393, Test Loss=0.146899, TM Norm=320.954193
+rel_power: 0.9954220652580261
+Epoch 93/100: Train Loss=0.100352, Test Loss=0.146855, TM Norm=322.358612
+rel_power: 0.9955106973648071
+Epoch 94/100: Train Loss=0.100214, Test Loss=0.146820, TM Norm=323.763947
+rel_power: 0.9955299496650696
+Epoch 95/100: Train Loss=0.100021, Test Loss=0.146794, TM Norm=325.176575
+rel_power: 0.9955779910087585
+Epoch 96/100: Train Loss=0.099980, Test Loss=0.146762, TM Norm=326.559631
+rel_power: 0.9956964254379272
+Epoch 97/100: Train Loss=0.099965, Test Loss=0.146767, TM Norm=327.961121
+rel_power: 0.9957154393196106
+Epoch 98/100: Train Loss=0.099837, Test Loss=0.146690, TM Norm=329.354462
+rel_power: 0.9956166744232178
+Epoch 99/100: Train Loss=0.099761, Test Loss=0.146637, TM Norm=330.737732
+rel_power: 0.9955971837043762
+Epoch 100/100: Train Loss=0.099507, Test Loss=0.146638, TM Norm=332.131042
+Optimization Completed.
+  new dataset: 14.8 min; retrieval 11.5 min; freshness 0.992
+
+=== 2. Five single-focus targets, optimized as in the standard run ===
+  target 1: (y, x) = (68, 66), predicted focus metric 389
+  target 2: (y, x) = (59, 67), predicted focus metric 492
+  target 3: (y, x) = (60, 69), predicted focus metric 487
+  target 4: (y, x) = (66, 68), predicted focus metric 480
+  target 5: (y, x) = (58, 57), predicted focus metric 646
+
+=== 3. Frames ===
+  target 1 at [68, 66]: peak 139 counts at E0, background 29.37 counts (0.01 zeros); PBR (i) 5, (ii) 6, (iii) 5
+  target 2 at [59, 67]: peak 205 counts at E0, background 29.36 counts (0.01 zeros); PBR (i) 7, (ii) 9, (iii) 7
+  target 3 at [60, 69]: peak 228 counts at E0, background 29.32 counts (0.01 zeros); PBR (i) 8, (ii) 10, (iii) 7
+  target 4 at [66, 68]: peak 229 counts at E0, background 29.29 counts (0.01 zeros); PBR (i) 8, (ii) 10, (iii) 8
+  target 5 at [58, 57]: peak 183 counts at E0, background 29.36 counts (0.01 zeros); PBR (i) 6, (ii) 8, (iii) 6
+
+target  peak(E0)  bg(E0)  zeros(E0)   PBR (i)        PBR (ii)  PBR (iii)  (i)/(ii)  (i)/(iii)  exposures of (ii), (iii)
+  1   (65, 67)     139  29.369    0.008      4.7 +-   0.1       6.3       4.6    0.756     1.035    1536.0, 384.0
+  2   (62, 67)     205  29.363    0.008      7.0 +-   0.1       9.3       6.7    0.754     1.033    1536.0, 384.0
+  3   (63, 67)     228  29.324    0.008      7.8 +-   0.2      10.2       7.5    0.758     1.035    1536.0, 384.0
+  4   (63, 67)     229  29.288    0.009      7.8 +-   0.1      10.3       7.6    0.759     1.034    1536.0, 384.0
+  5   (55, 54)     183  29.358    0.008      6.2 +-   0.1       8.3       6.1    0.756     1.031    1536.0, 384.0
+ratio (i)/(ii): mean 0.757, spread (std over the targets) 0.002, range 0.754 to 0.759
+the same with the 7 x 7 window excluded at E0 as well: mean 0.762, std 0.002
+(i) over the PBR with the same background definition (3 x 3) and the long-exposure background: mean 0.764, std 0.002, range 0.760 to 0.766; the ring between the two windows holds 1 % of the E0 background counts
+freshness at the end: 0.990; warm-up frames discarded: 52
+
+Saved to <lab>\TM_lib\tm_focus_outputs\pbr_bias_check_20261116_1139
+Camera 40237702: PixelFormat -> Mono8, ExposureTime -> 19.000 (min)
+Camera 40238131: PixelFormat -> Mono8, ExposureTime -> 19.000 (min)

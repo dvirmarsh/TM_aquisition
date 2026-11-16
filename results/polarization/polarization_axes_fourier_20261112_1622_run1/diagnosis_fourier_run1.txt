@@ -1,0 +1,42 @@
+Diagnosis of the first Fourier-plane run of run_polarization_axes.py
+12 Nov 2026. Command: python run_polarization_axes.py --plane fourier --x-angle 0 --also-uncorrected
+Polarizer on the KDC101 stage (serial 27268833) in front of the transmission Fourier-plane camera (serial 40238131).
+Lab x is defined as stage angle 0 (true horizontal not known). TM checkpoint of 12:46 (frames acquired 12:34).
+
+Verdict: marginal / not good. The correction works in direction (separation +0.037 uncorrected -> +0.643
+corrected) but misses the criteria (explained fraction 0.042, separation < 0.8, leaks 10-13%).
+
+1. The light that reaches the polarizer is partly polarized on average
+   Mean signal inside the NA disk (r < 45 px), exposure 675: 69.7, 140.7, 223.3, 148.4 counts at stage 0/45/90/135 deg.
+   Ratio to 0 deg: 1, 2.02, 3.20, 2.13. Degree of linear polarization of the mean light 0.53, azimuth 91.4 deg (stage scale).
+   The unitary model E_lab = c U E_model with the fitted U predicts 1, 1.17, 0.79, 0.62.
+   A unitary U cannot give this: the path to the polarizer favours one linear polarization.
+
+2. A general Jones matrix J (unitary x diattenuator), fitted offline to the same speckle frames
+   Fraction of the frame variance explained, all angles together: unitary U 0.190, general J 0.486.
+   PCC per angle: U 0.514, 0.511, 0.610, 0.582; J 0.552, 0.571, 0.716, 0.605 (mask r < 45).
+   J: singular values 1.358 and 0.396 (diattenuation 0.84; this overestimates the measured mean-signal ratio, 6.2 against 3.2).
+   Favoured state at the polarizer: linear, azimuth 94.9 deg, ellipticity -0.4 deg (stage scale).
+   The same state in the TM frame, Stokes direction (-0.382, -0.274, -0.882), lies 10.2 deg from the analyzer
+   direction (-0.492, -0.137, -0.860) found in the Fourier frames of the TM acquisition (12:34, no polarizer).
+   Saved as diagnosis_general_jones_J.npy (analysis only; not used by the script).
+
+3. Check on the two-foci frames, which were not used in the fit (fraction of each focus passing at stage 0)
+   tm_axes_uncorrected: measured A 0.160, B 0.123 | general J predicts A 0.109, B 0.074 | unitary U predicts A 0.441, B 0.568
+   lab_axes:            measured A 0.668, B 0.026 | general J predicts A 0.382, B 0.004 | unitary U predicts A 1.000, B 0.000
+   J gives the right picture (focus A, along the suppressed axis, is the impure one) but is not quantitative.
+
+4. The TM-acquisition frames already show it, with opposite sign in the two cameras
+   Regression of the 12:34 frames on the model Stokes images [1, S0, S1, S2, S3], analyzer vector c123 / c0:
+     image camera   (+0.363, +0.081, +0.635), length 0.74, PCC 0.837 -> 0.901
+     Fourier camera (-0.212, -0.059, -0.364), length 0.43, PCC 0.778 -> 0.853
+   The two vectors are antiparallel. An element that divides the light between the two cameras with a
+   polarization-dependent ratio (the beam splitter) would do this. Not verified on the bench.
+
+5. Image displacement
+   (-10.14, +2.48), (-9.15, -4.90), (-2.99, -9.29), (+4.46, -8.03) px at 0/45/90/135 deg: a circle of radius 9.9 px
+   around (-0.5, +0.3). Above the 6 px guideline (crop margin 5.9 px), but the fit region (r < 50) stays inside the crop,
+   and the displacements measured on the foci agree within 0.6 px.
+
+6. Model accuracy
+   PCC of the model total intensity with the 12:34 Fourier frames: 0.78 (image plane: 0.84).

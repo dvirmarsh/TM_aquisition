@@ -1,0 +1,78 @@
+{
+ "A": {
+  "window 3, all 12 angles": {
+   "extinction_angle_deg": 0.857638007270566,
+   "sigma_fit_deg": 0.9175411425799715,
+   "sigma_bootstrap_deg": 1.0145691760882414,
+   "minimum_over_maximum_of_fit": -0.001449586137743902,
+   "rms_residual_over_amplitude": 0.0679421314571148,
+   "lowest_measured_power": 4.0,
+   "angle_of_lowest_measured_power_deg": 0.0
+  },
+  "window 3, within 38 deg of the minimum": {
+   "extinction_angle_deg": 3.6652625786764617,
+   "sigma_fit_deg": 0.33643046674751503,
+   "sigma_bootstrap_deg": 6.153480596427404e-15,
+   "minimum_over_maximum_of_fit": -0.0037531218953121195,
+   "rms_residual_over_amplitude": 0.009856716000251134,
+   "lowest_measured_power": 4.0,
+   "angle_of_lowest_measured_power_deg": 0.0
+  },
+  "window 5, all 12 angles": {
+   "extinction_angle_deg": 0.47183914629731305,
+   "sigma_fit_deg": 0.9029592024622236,
+   "sigma_bootstrap_deg": 1.0208452109668271,
+   "minimum_over_maximum_of_fit": -0.0012019256821732079,
+   "rms_residual_over_amplitude": 0.06686236724120832,
+   "lowest_measured_power": 10.0,
+   "angle_of_lowest_measured_power_deg": 0.0
+  },
+  "window 5, within 38 deg of the minimum": {
+   "extinction_angle_deg": 3.4281917005603475,
+   "sigma_fit_deg": 0.38556116197694207,
+   "sigma_bootstrap_deg": 5.919821640635617e-15,
+   "minimum_over_maximum_of_fit": -0.002757635427385312,
+   "rms_residual_over_amplitude": 0.011381120166339185,
+   "lowest_measured_power": 10.0,
+   "angle_of_lowest_measured_power_deg": 0.0
+  }
+ },
+ "B": {
+  "window 3, all 12 angles": {
+   "extinction_angle_deg": 101.06738044104407,
+   "sigma_fit_deg": 1.3488236001971838,
+   "sigma_bootstrap_deg": 1.457874788651358,
+   "minimum_over_maximum_of_fit": 5.116104151235659e-05,
+   "rms_residual_over_amplitude": 0.09987775599835683,
+   "lowest_measured_power": 29.0,
+   "angle_of_lowest_measured_power_deg": 105.0
+  },
+  "window 3, within 38 deg of the minimum": {
+   "extinction_angle_deg": 99.59030697300906,
+   "sigma_fit_deg": 0.33969622270641897,
+   "sigma_bootstrap_deg": 0.2565305696688791,
+   "minimum_over_maximum_of_fit": 0.027813860543175813,
+   "rms_residual_over_amplitude": 0.014338594516854557,
+   "lowest_measured_power": 29.0,
+   "angle_of_lowest_measured_power_deg": 105.0
+  },
+  "window 5, all 12 angles": {
+   "extinction_angle_deg": 100.01846274804745,
+   "sigma_fit_deg": 1.3365524913672797,
+   "sigma_bootstrap_deg": 1.4035951505244635,
+   "minimum_over_maximum_of_fit": 0.0031317002459299195,
+   "rms_residual_over_amplitude": 0.09896910433081241,
+   "lowest_measured_power": 48.0,
+   "angle_of_lowest_measured_power_deg": 90.0
+  },
+  "window 5, within 38 deg of the minimum": {
+   "extinction_angle_deg": 98.49692157819254,
+   "sigma_fit_deg": 0.36375187846765195,
+   "sigma_bootstrap_deg": 0.23968521689338618,
+   "minimum_over_maximum_of_fit": 0.029147700042148113,
+   "rms_residual_over_amplitude": 0.015505456923878494,
+   "lowest_measured_power": 48.0,
+   "angle_of_lowest_measured_power_deg": 90.0
+  }
+ }
+}

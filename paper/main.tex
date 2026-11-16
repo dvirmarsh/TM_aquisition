@@ -105,7 +105,7 @@ Either fit requires only intensity images, recorded with no reference beam and n
 \begin{figure*}[t]
 \centering
 \includegraphics[width=0.85\textwidth]{figures/optical_setup_3d.pdf}
-\caption{\textbf{Experimental setup.} A HeNe laser ($\lambda=632.8$\,nm) illuminates a phase-only spatial light modulator (SLM) through beam splitter BS1. The SLM modulates one polarization component of the incident field. Lenses L1 and L2 image the SLM onto the back focal plane of objective O1, which couples the shaped field into the MMF (length 1\,m, core diameter 50\,$\mu$m, $\mathrm{NA}=0.22$, $M=1508$ guided modes). Objective O2 collects the transmitted light, and BS2 splits it between two polarization-insensitive cameras. One camera records the fiber image plane, while the other, placed behind lens L3, records its Fourier plane. Both cameras expose simultaneously for every SLM pattern. No reference arm and no output polarizer are used.}
+\caption{\textbf{Experimental setup.} A HeNe laser ($\lambda=632.8$\,nm) illuminates a phase-only spatial light modulator (SLM) through beam splitter BS1. The SLM modulates one polarization component of the incident field. Lenses L1 and L2 image the SLM onto the back focal plane of objective O1, which couples the shaped field into the MMF (length 1\,m, core diameter 50\,$\mu$m, $\mathrm{NA}=0.22$, $M=1508$ guided modes). Objective O2 collects the transmitted light, and BS2, a pellicle beam splitter, splits it between two polarization-insensitive cameras. One camera records the fiber image plane, while the other, placed behind lens L3, records its Fourier plane. Both cameras expose simultaneously for every SLM pattern. No reference arm and no output polarizer are used.}
 \label{fig:setup}
 \end{figure*}
 
@@ -141,7 +141,9 @@ In the weak-guidance approximation, which holds for our fiber ($\mathrm{NA}=0.22
 Such a rotation does not change the polarization-summed intensity in either plane.
 The retrieved axes $x'$ and $y'$ are therefore rotated from the laboratory axes by an unknown global angle $\theta$.
 Because $\theta$ is the same at every pixel, it does not limit vectorial control: the two foci in Fig.~\ref{fig:vector_control} are orthogonally polarized whatever the value of $\theta$.
-If the orientation of $x'$ and $y'$ in the laboratory frame is required, the extinction angles of a single linear polarizer give $\theta$ directly [Fig.~\ref{fig:vector_control}(b,c)].
+In our setup, including the unequal splitting of BS2 in the forward model as one fitted parameter fixes $x'$ and $y'$ to the polarization axes of BS2 within $2^\circ$.
+Only a phase between the two components then remains free.
+A single image recorded behind a polarizer at $45^\circ$ determines this phase (Supplementary Section~S7).
 
 \begin{figure}[t]
 \centering
@@ -228,6 +230,10 @@ The cameras are polarization-insensitive and the two components are orthogonal, 
 \begin{equation}
 I_{\text{pred}, p}(x, y) = |E_{x,p}(x, y)|^2 + |E_{y,p}(x, y)|^2.
 \end{equation}
+BS2 transmits and reflects the two polarization components in different ratios, so the two cameras weight them differently.
+For the test of the polarization axes (Supplementary Section~S7), the joint fit therefore models the Fourier-plane intensity as $(1+b)|E_x|^2+(1-b)|E_y|^2$, with $b$ as one additional trainable parameter.
+Intensity data determine only the weights of one camera relative to the other, so the image-plane weights are kept equal.
+All other results in this work were obtained with $b=0$.
 
 \subsection{Fast TM Retrieval Algorithm}
 Recovering the TM from intensity-only measurements is a phase retrieval problem, and polarization-summed detection compounds it: each camera pixel constrains only $I_{\text{meas},p} = |E_{x,p}|^2 + |E_{y,p}|^2$, so no measurement isolates either field component.
@@ -353,7 +359,7 @@ The measurements of Fig.~\ref{fig:focus_time} were obtained in exactly this way:
 A realignment of the optical path, by contrast, requires the calibration to be repeated.
 
 \section{Discussion \& Conclusion}
-Expressing every output field as a superposition of the fiber's guided vector modes allowed us to retrieve the vectorial TM of an MMF without a reference beam. Intensity-only, polarization-summed detection leaves each output pixel free to take its own phase and its own rotation of the polarization axes. The guided modes span the whole output plane with known amplitude, phase, and polarization profiles, so they tie all pixels together and reduce both freedoms to a single global phase and rotation. Neither affects control, and where the absolute orientation of the axes matters, a few intensity measurements behind a polarizer at different angles fix the rotation\textcolor{red}{[Q9]}. The same TM therefore controlled the field in both the image and Fourier planes [Fig.~\ref{fig:tm_control}] and in both polarization components, placing foci in orthogonal polarizations from polarization-summed data [Fig.~\ref{fig:vector_control}]. The constraint holds with one measurement plane too: a TM retrieved from one plane focused light in the conjugate plane with $\mathrm{PBR}=317$ and $433$, versus $526$ and $619$ with both planes fitted [Fig.~\ref{fig:cross_plane_focus}].
+Expressing every output field as a superposition of the fiber's guided vector modes allowed us to retrieve the vectorial TM of an MMF without a reference beam. Intensity-only, polarization-summed detection leaves each output pixel free to take its own phase and its own rotation of the polarization axes. The guided modes span the whole output plane with known amplitude, phase, and polarization profiles, so they tie all pixels together and reduce both freedoms to a single global phase and rotation. Neither affects control. Where the absolute orientation of the axes matters, a polarization-dependent element in the detection path fixes it. Here, including the unequal splitting of BS2 in the forward model aligned the retrieved axes with those of BS2 (Supplementary Section~S7). The same TM therefore controlled the field in both the image and Fourier planes [Fig.~\ref{fig:tm_control}] and in both polarization components, placing foci in orthogonal polarizations from polarization-summed data [Fig.~\ref{fig:vector_control}]. The constraint holds with one measurement plane too: a TM retrieved from one plane focused light in the conjugate plane with $\mathrm{PBR}=317$ and $433$, versus $526$ and $619$ with both planes fitted [Fig.~\ref{fig:cross_plane_focus}].
 
 Because the unknowns scale with the $M=1508$ guided modes rather than with the camera pixels, the retrieval is also economical. It exceeded $\mathrm{PBR}=500$ at every tested budget, from $1.2M$ to $3M$ probes, within 4.7--6.6~s [Fig.~\ref{fig:focus_time}]. Of the pixel-basis baselines, which retrieved only a scalar TM, RAF21 reached this level only at $3M$ probes after 16.3~s, and ADMM remained below it throughout the measured interval.
 
@@ -367,7 +373,7 @@ In conclusion, embedding the guided modes into the retrieval replaces the refere
 
 
 \section*{Data availability}
-The raw intensity measurements are available on Zenodo at \url{https://doi.org/10.5281/zenodo.24243174}.
+The raw intensity measurements are available on Zenodo at \url{https://doi.org/10.5281/zenodo.24243174}. \textcolor{red}{[add the 15 Nov dataset of Supplementary Section~S7 as a new version of the record; update the DOI if it changes]}
 
 \section*{Code availability}
 The retrieval code, baselines and figure scripts are available at \url{https://github.com/dvirmarsh/TM_aquisition}.

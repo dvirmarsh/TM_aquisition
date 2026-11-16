@@ -1,0 +1,1257 @@
+{
+ "started": "2026-11-16T12:21:03",
+ "pixel_format_requested": "Mono12",
+ "standard_checkpoint": "<lab>\\TM_lib\\tm_focus_outputs\\tm_system_checkpoint.pt",
+ "standard_dataset": "<lab>\\TM_lib\\measurement_focus.h5",
+ "camera_state_before": {
+  "image_camera": {
+   "serial": "40237702",
+   "model": "daA1920-160um",
+   "vendor": "Basler",
+   "device_class": "BaslerUsb",
+   "PixelFormat": "Mono12",
+   "BlackLevel": 0.0,
+   "BlackLevel_min": 0.0,
+   "BlackLevel_max": 4095.0,
+   "BlackLevel_unit": "DN",
+   "BlackLevelSelector": "All",
+   "Gain": 0.0,
+   "Gain_min": 0.0,
+   "Gain_max": 48.00000004350822,
+   "Gain_unit": "dB",
+   "GainSelector": "All",
+   "GainAuto": "Off",
+   "ExposureAuto": "Off",
+   "ExposureMode": "Timed",
+   "ExposureTime": 540.0,
+   "ExposureTime_min": 24.0,
+   "ExposureTime_max": 10000000.0,
+   "ExposureTime_unit": "us",
+   "Gamma": 1.0,
+   "DigitalShift": 0,
+   "BinningHorizontal": 1,
+   "BinningVertical": 1,
+   "BinningHorizontalMode": "Sum",
+   "BinningVerticalMode": "Sum",
+   "Width": 1920,
+   "Height": 1200,
+   "OffsetX": 8,
+   "OffsetY": 8,
+   "SensorWidth": 1936,
+   "SensorHeight": 1216,
+   "ReverseX": false,
+   "ReverseY": false,
+   "TriggerMode": "On",
+   "TriggerSource": "Software",
+   "BslUSBSpeedMode": "SuperSpeed",
+   "DeviceLinkSpeed": 4000000000,
+   "SensorReadoutMode": "not available (LogicalErrorException)",
+   "ShutterMode": "not available (LogicalErrorException)",
+   "DeviceModelName": "daA1920-160um",
+   "DeviceFirmwareVersion": "p=du1_imx392m/s=r/v=1.2.1/i=6515.14/h=61c0643",
+   "BslContrastMode": "Linear",
+   "BslBrightness": 0.0,
+   "BslContrast": 0.0,
+   "PgiMode": "not available (LogicalErrorException)",
+   "DefectPixelCorrectionMode": "not available (LogicalErrorException)"
+  },
+  "fourier_camera": {
+   "serial": "40238131",
+   "model": "daA1920-160um",
+   "vendor": "Basler",
+   "device_class": "BaslerUsb",
+   "PixelFormat": "Mono12",
+   "BlackLevel": 0.0,
+   "BlackLevel_min": 0.0,
+   "BlackLevel_max": 4095.0,
+   "BlackLevel_unit": "DN",
+   "BlackLevelSelector": "All",
+   "Gain": 0.0,
+   "Gain_min": 0.0,
+   "Gain_max": 48.00000004350822,
+   "Gain_unit": "dB",
+   "GainSelector": "All",
+   "GainAuto": "Off",
+   "ExposureAuto": "Off",
+   "ExposureMode": "Timed",
+   "ExposureTime": 675.0,
+   "ExposureTime_min": 24.0,
+   "ExposureTime_max": 10000000.0,
+   "ExposureTime_unit": "us",
+   "Gamma": 1.0,
+   "DigitalShift": 0,
+   "BinningHorizontal": 1,
+   "BinningVertical": 1,
+   "BinningHorizontalMode": "Sum",
+   "BinningVerticalMode": "Sum",
+   "Width": 1920,
+   "Height": 1200,
+   "OffsetX": 8,
+   "OffsetY": 8,
+   "SensorWidth": 1936,
+   "SensorHeight": 1216,
+   "ReverseX": false,
+   "ReverseY": false,
+   "TriggerMode": "On",
+   "TriggerSource": "Software",
+   "BslUSBSpeedMode": "SuperSpeed",
+   "DeviceLinkSpeed": 4000000000,
+   "SensorReadoutMode": "not available (LogicalErrorException)",
+   "ShutterMode": "not available (LogicalErrorException)",
+   "DeviceModelName": "daA1920-160um",
+   "DeviceFirmwareVersion": "p=du1_imx392m/s=r/v=1.2.1/i=6515.14/h=61c0643",
+   "BslContrastMode": "Linear",
+   "BslBrightness": 0.0,
+   "BslContrast": 0.0,
+   "PgiMode": "not available (LogicalErrorException)",
+   "DefectPixelCorrectionMode": "not available (LogicalErrorException)"
+  }
+ },
+ "camera_minimum_exposure": 24.0,
+ "e0": 24.0,
+ "exposures": [
+  24.0,
+  96.0,
+  384.0,
+  1536.0
+ ],
+ "dataset_exposure_image_camera": 540.0,
+ "freshness_mask_indices": [
+  23,
+  31,
+  37,
+  50,
+  79,
+  80,
+  84,
+  93
+ ],
+ "freshness_attempt_1": {
+  "pcc_fit_region": [
+   0.9443810471641656,
+   0.9573416105010879,
+   0.9305352282505251,
+   0.9562514553373556,
+   0.9580584754280672,
+   0.9256865120842704,
+   0.9553519845445745,
+   0.9520916887497056
+  ],
+  "mean": 0.947462250257469,
+  "pcc_full_frame_mean": 0.9661717783404158,
+  "mean_against_the_previous_mask": -0.01051191257949311,
+  "exposure": 540.0,
+  "correlation_between_frames_of_different_masks": 0.005499316945295754,
+  "level_now_over_dataset": 1.0013445615768433,
+  "saturated_pixels_per_frame": 0.0,
+  "minutes_since_dataset": 1537.82347655
+ },
+ "tm_used": "standard checkpoint",
+ "support_radius_px": 58.116305255893366,
+ "targets": [
+  {
+   "index": 1,
+   "target_yx": [
+    68,
+    66
+   ],
+   "focus_metric_last_iteration": 441.93231201171875,
+   "recorded": "2026-11-16T12:21:24",
+   "minutes_since_dataset": 1538.1968396333332,
+   "analysis": {
+    "target_yx": [
+     68,
+     66
+    ],
+    "peak_yx": [
+     68,
+     66
+    ],
+    "e0": 24.0,
+    "peak_e0_counts_mean": 835.4000244140625,
+    "peak_e0_counts_frames": [
+     818.0,
+     849.0,
+     841.0,
+     826.0,
+     843.0
+    ],
+    "peak_position_per_frame": [
+     [
+      68,
+      66
+     ],
+     [
+      68,
+      66
+     ],
+     [
+      68,
+      66
+     ],
+     [
+      68,
+      66
+     ],
+     [
+      68,
+      66
+     ]
+    ],
+    "pbr_i_frames": [
+     475.7942838334522,
+     493.28439914515866,
+     491.5452841629458,
+     482.7249076778923,
+     494.5680849886571
+    ],
+    "pbr_i": 487.58339196162126,
+    "pbr_i_std": 7.205164111892076,
+    "pbr_i_first_frame": 475.7942838334522,
+    "background_e0_mean_counts": 1.7133830785751343,
+    "background_e0_zero_fraction": 0.49593511270395174,
+    "background_e0_fraction_at_1_count": 0.2703385834197868,
+    "per_exposure": {
+     "24": {
+      "exposure": 24.0,
+      "ratio_to_e0": 1.0,
+      "background_7x7_mean_counts": 1.0937044620513916,
+      "background_7x7_scaled_to_e0": 1.0937044620513916,
+      "background_7x7_zero_fraction": 0.4978131212723658,
+      "background_3x3_mean_counts": 1.7133829593658447,
+      "background_3x3_scaled_to_e0": 1.7133829593658447,
+      "background_3x3_zero_fraction": 0.4959351127039517,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 835.4000244140625,
+      "largest_count": 849.0
+     },
+     "96": {
+      "exposure": 96.0,
+      "ratio_to_e0": 4.0,
+      "background_7x7_mean_counts": 6.172431945800781,
+      "background_7x7_scaled_to_e0": 1.5431079864501953,
+      "background_7x7_zero_fraction": 0.10269809713149673,
+      "background_3x3_mean_counts": 8.676393508911133,
+      "background_3x3_scaled_to_e0": 2.169098377227783,
+      "background_3x3_zero_fraction": 0.10231066679241724,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 3376.60009765625,
+      "largest_count": 3432.0
+     },
+     "384": {
+      "exposure": 384.0,
+      "ratio_to_e0": 16.0,
+      "background_7x7_mean_counts": 27.810035705566406,
+      "background_7x7_scaled_to_e0": 1.7381272315979004,
+      "background_7x7_zero_fraction": 0.008349900596421472,
+      "background_3x3_mean_counts": 31.260944366455078,
+      "background_3x3_scaled_to_e0": 1.9538090229034424,
+      "background_3x3_zero_fraction": 0.008328611898016997,
+      "saturated_grid_pixels_excluded": 22,
+      "saturated_camera_pixels": 760,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     },
+     "1536": {
+      "exposure": 1536.0,
+      "ratio_to_e0": 64.0,
+      "background_7x7_mean_counts": 114.98060607910156,
+      "background_7x7_scaled_to_e0": 1.796571969985962,
+      "background_7x7_zero_fraction": 0.00015148646089755728,
+      "background_3x3_mean_counts": 116.2027816772461,
+      "background_3x3_scaled_to_e0": 1.8156684637069702,
+      "background_3x3_zero_fraction": 0.00015135748746570807,
+      "saturated_grid_pixels_excluded": 41,
+      "saturated_camera_pixels": 1478,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     }
+    },
+    "exposures_with_fewer_than_1_percent_zeros": [
+     384.0,
+     1536.0
+    ],
+    "criterion_fewer_than_1_percent_zeros_met": true,
+    "exposure_ii": 1536.0,
+    "pbr_ii": 464.99669279633156,
+    "ratio_i_over_ii": 1.0485738920624597,
+    "exposure_iii": 384.0,
+    "pbr_iii": 480.63226283271564,
+    "ratio_i_over_iii": 1.0144624688487152,
+    "pbr_i_with_7x7_exclusion": 763.8261097034898,
+    "ratio_i7_over_ii": 1.6426484780141124,
+    "implied_offset_counts_per_pixel": 0.7028675079345703,
+    "pbr_ii_with_3x3_exclusion": 460.1060386919224,
+    "ratio_i_over_ii_3x3": 1.0597196101746822,
+    "background_ii_zero_fraction": 0.00015148646089755728,
+    "ring_3x3_to_7x7_mean_counts_e0": 165.35501098632812,
+    "ring_pixels": 40,
+    "background_3x3_definition_unbiased_counts": 2.413598973335303,
+    "pbr_same_definition_unbiased": 346.1221328163064,
+    "ratio_i_over_same_definition": 1.4087033036410619,
+    "share_of_ring_in_background_e0": 0.36407774686813354,
+    "linearity": {
+     "24_to_96": {
+      "n_pixels": 1475,
+      "ratio_of_sums_over_exposure_ratio": 1.0090009392198973,
+      "fit_slope": 1.0062405261436294,
+      "fit_offset_counts_at_longer_exposure": 3.047843380381386,
+      "implied_dark_offset_counts": -1.015947793460462
+     },
+     "24_to_384": {
+      "n_pixels": 640,
+      "ratio_of_sums_over_exposure_ratio": 1.0265944942404717,
+      "fit_slope": 1.020337422875495,
+      "fit_offset_counts_at_longer_exposure": 10.380418823782698,
+      "implied_dark_offset_counts": -0.6920279215855132
+     },
+     "24_to_1536": {
+      "n_pixels": 0
+     },
+     "96_to_384": {
+      "n_pixels": 3847,
+      "ratio_of_sums_over_exposure_ratio": 1.0155165412948726,
+      "fit_slope": 1.010143292115992,
+      "fit_offset_counts_at_longer_exposure": 2.900460631781675,
+      "implied_dark_offset_counts": -0.9668202105938916
+     },
+     "96_to_1536": {
+      "n_pixels": 3155,
+      "ratio_of_sums_over_exposure_ratio": 1.033739823418331,
+      "fit_slope": 1.027467528994596,
+      "fit_offset_counts_at_longer_exposure": 7.630577176622445,
+      "implied_dark_offset_counts": -0.508705145108163
+     },
+     "384_to_1536": {
+      "n_pixels": 54203,
+      "ratio_of_sums_over_exposure_ratio": 1.0161475962251123,
+      "fit_slope": 1.012220136439421,
+      "fit_offset_counts_at_longer_exposure": 1.4124696287813416,
+      "implied_dark_offset_counts": -0.47082320959378055
+     }
+    }
+   },
+   "tm_predicted_pbr": 588.2932419526642
+  },
+  {
+   "index": 2,
+   "target_yx": [
+    59,
+    67
+   ],
+   "focus_metric_last_iteration": 438.8434753417969,
+   "recorded": "2026-11-16T12:21:27",
+   "minutes_since_dataset": 1538.2454191666666,
+   "analysis": {
+    "target_yx": [
+     59,
+     67
+    ],
+    "peak_yx": [
+     59,
+     67
+    ],
+    "e0": 24.0,
+    "peak_e0_counts_mean": 802.4000244140625,
+    "peak_e0_counts_frames": [
+     794.0,
+     804.0,
+     818.0,
+     791.0,
+     805.0
+    ],
+    "peak_position_per_frame": [
+     [
+      59,
+      68
+     ],
+     [
+      59,
+      67
+     ],
+     [
+      59,
+      68
+     ],
+     [
+      59,
+      68
+     ],
+     [
+      59,
+      67
+     ]
+    ],
+    "pbr_i_frames": [
+     519.0371146732429,
+     523.8301585350866,
+     540.928901085194,
+     521.1889758886404,
+     526.3900709219859
+    ],
+    "pbr_i": 526.2750442208301,
+    "pbr_i_std": 7.732812339312725,
+    "pbr_i_first_frame": 519.0371146732429,
+    "background_e0_mean_counts": 1.5250588655471802,
+    "background_e0_zero_fraction": 0.5375837027256438,
+    "background_e0_fraction_at_1_count": 0.27207394133735735,
+    "per_exposure": {
+     "24": {
+      "exposure": 24.0,
+      "ratio_to_e0": 1.0,
+      "background_7x7_mean_counts": 0.9308151006698608,
+      "background_7x7_scaled_to_e0": 0.9308151006698608,
+      "background_7x7_zero_fraction": 0.539581558269431,
+      "background_3x3_mean_counts": 1.5250589847564697,
+      "background_3x3_scaled_to_e0": 1.5250589847564697,
+      "background_3x3_zero_fraction": 0.5375837027256437,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 798.7999877929688,
+      "largest_count": 818.0
+     },
+     "96": {
+      "exposure": 96.0,
+      "ratio_to_e0": 4.0,
+      "background_7x7_mean_counts": 5.444532871246338,
+      "background_7x7_scaled_to_e0": 1.3611332178115845,
+      "background_7x7_zero_fraction": 0.11345261762756792,
+      "background_3x3_mean_counts": 7.834235668182373,
+      "background_3x3_scaled_to_e0": 1.9585589170455933,
+      "background_3x3_zero_fraction": 0.11302461567480902,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 3194.800048828125,
+      "largest_count": 3230.0
+     },
+     "384": {
+      "exposure": 384.0,
+      "ratio_to_e0": 16.0,
+      "background_7x7_mean_counts": 24.88552474975586,
+      "background_7x7_scaled_to_e0": 1.5553452968597412,
+      "background_7x7_zero_fraction": 0.01062198239136609,
+      "background_3x3_mean_counts": 29.043840408325195,
+      "background_3x3_scaled_to_e0": 1.8152400255203247,
+      "background_3x3_zero_fraction": 0.01059190031152648,
+      "saturated_grid_pixels_excluded": 19,
+      "saturated_camera_pixels": 740,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     },
+     "1536": {
+      "exposure": 1536.0,
+      "ratio_to_e0": 64.0,
+      "background_7x7_mean_counts": 103.38939666748047,
+      "background_7x7_scaled_to_e0": 1.6154593229293823,
+      "background_7x7_zero_fraction": 0.0001325381047051027,
+      "background_3x3_mean_counts": 104.28044128417969,
+      "background_3x3_scaled_to_e0": 1.6293818950653076,
+      "background_3x3_zero_fraction": 0.00013242527430949678,
+      "saturated_grid_pixels_excluded": 40,
+      "saturated_camera_pixels": 1424,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     }
+    },
+    "exposures_with_fewer_than_1_percent_zeros": [
+     1536.0
+    ],
+    "criterion_fewer_than_1_percent_zeros_met": true,
+    "exposure_ii": 1536.0,
+    "pbr_ii": 496.70085345079184,
+    "ratio_i_over_ii": 1.059541252173363,
+    "exposure_iii": 384.0,
+    "pbr_iii": 515.8983191926042,
+    "ratio_i_over_iii": 1.0201138957856382,
+    "pbr_i_with_7x7_exclusion": 862.0401880423035,
+    "ratio_i7_over_ii": 1.7355319244034797,
+    "implied_offset_counts_per_pixel": 0.6846442222595215,
+    "pbr_ii_with_3x3_exclusion": 492.4566959067023,
+    "ratio_i_over_ii_3x3": 1.0686727352785041,
+    "background_ii_zero_fraction": 0.0001325381047051027,
+    "ring_3x3_to_7x7_mean_counts_e0": 158.4499969482422,
+    "ring_pixels": 40,
+    "background_3x3_definition_unbiased_counts": 2.2071203270869626,
+    "pbr_same_definition_unbiased": 363.5506476772379,
+    "ratio_i_over_same_definition": 1.4475975977026994,
+    "share_of_ring_in_background_e0": 0.39195558428764343,
+    "linearity": {
+     "24_to_96": {
+      "n_pixels": 1427,
+      "ratio_of_sums_over_exposure_ratio": 1.0105718392575411,
+      "fit_slope": 1.0066297698833424,
+      "fit_offset_counts_at_longer_exposure": 4.411057947769825,
+      "implied_dark_offset_counts": -1.4703526492566084
+     },
+     "24_to_384": {
+      "n_pixels": 604,
+      "ratio_of_sums_over_exposure_ratio": 1.0295639110475014,
+      "fit_slope": 1.0176083382161354,
+      "fit_offset_counts_at_longer_exposure": 19.826995301970708,
+      "implied_dark_offset_counts": -1.3217996867980473
+     },
+     "24_to_1536": {
+      "n_pixels": 0
+     },
+     "96_to_384": {
+      "n_pixels": 3705,
+      "ratio_of_sums_over_exposure_ratio": 1.0155433039426078,
+      "fit_slope": 1.0078506848287103,
+      "fit_offset_counts_at_longer_exposure": 4.04347813275025,
+      "implied_dark_offset_counts": -1.3478260442500833
+     },
+     "96_to_1536": {
+      "n_pixels": 3053,
+      "ratio_of_sums_over_exposure_ratio": 1.035136222591753,
+      "fit_slope": 1.024363589300104,
+      "fit_offset_counts_at_longer_exposure": 12.568637680970498,
+      "implied_dark_offset_counts": -0.8379091787313666
+     },
+     "384_to_1536": {
+      "n_pixels": 37668,
+      "ratio_of_sums_over_exposure_ratio": 1.0143190363501682,
+      "fit_slope": 1.0135970991433905,
+      "fit_offset_counts_at_longer_exposure": 0.27595919017401,
+      "implied_dark_offset_counts": -0.09198639672467
+     }
+    }
+   },
+   "tm_predicted_pbr": 582.5934371355908
+  },
+  {
+   "index": 3,
+   "target_yx": [
+    60,
+    69
+   ],
+   "focus_metric_last_iteration": 474.9826354980469,
+   "recorded": "2026-11-16T12:21:30",
+   "minutes_since_dataset": 1538.2941438166667,
+   "analysis": {
+    "target_yx": [
+     60,
+     69
+    ],
+    "peak_yx": [
+     60,
+     69
+    ],
+    "e0": 24.0,
+    "peak_e0_counts_mean": 1282.5999755859375,
+    "peak_e0_counts_frames": [
+     1263.0,
+     1300.0,
+     1256.0,
+     1298.0,
+     1296.0
+    ],
+    "peak_position_per_frame": [
+     [
+      60,
+      69
+     ],
+     [
+      60,
+      69
+     ],
+     [
+      60,
+      69
+     ],
+     [
+      60,
+      69
+     ],
+     [
+      60,
+      69
+     ]
+    ],
+    "pbr_i_frames": [
+     602.7902862801585,
+     617.6135854467246,
+     592.8051635878032,
+     622.1832730560579,
+     628.3546572774247
+    ],
+    "pbr_i": 612.7493931296337,
+    "pbr_i_std": 13.062456336712906,
+    "pbr_i_first_frame": 602.7902862801585,
+    "background_e0_mean_counts": 2.0935206413269043,
+    "background_e0_zero_fraction": 0.4753748938979534,
+    "background_e0_fraction_at_1_count": 0.2810902574742997,
+    "per_exposure": {
+     "24": {
+      "exposure": 24.0,
+      "ratio_to_e0": 1.0,
+      "background_7x7_mean_counts": 1.1955316066741943,
+      "background_7x7_scaled_to_e0": 1.1955316066741943,
+      "background_7x7_zero_fraction": 0.4771750449682855,
+      "background_3x3_mean_counts": 2.0935206413269043,
+      "background_3x3_scaled_to_e0": 2.0935206413269043,
+      "background_3x3_zero_fraction": 0.4753748938979534,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 1282.5999755859375,
+      "largest_count": 1300.0
+     },
+     "96": {
+      "exposure": 96.0,
+      "ratio_to_e0": 4.0,
+      "background_7x7_mean_counts": 6.746359825134277,
+      "background_7x7_scaled_to_e0": 1.6865899562835693,
+      "background_7x7_zero_fraction": 0.08079144182523904,
+      "background_3x3_mean_counts": 10.352843284606934,
+      "background_3x3_scaled_to_e0": 2.5882108211517334,
+      "background_3x3_zero_fraction": 0.08048665472036216,
+      "saturated_grid_pixels_excluded": 5,
+      "saturated_camera_pixels": 169,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     },
+     "384": {
+      "exposure": 384.0,
+      "ratio_to_e0": 16.0,
+      "background_7x7_mean_counts": 30.281265258789062,
+      "background_7x7_scaled_to_e0": 1.8925790786743164,
+      "background_7x7_zero_fraction": 0.004563097604847108,
+      "background_3x3_mean_counts": 33.75169372558594,
+      "background_3x3_scaled_to_e0": 2.109480857849121,
+      "background_3x3_zero_fraction": 0.004552753376782847,
+      "saturated_grid_pixels_excluded": 25,
+      "saturated_camera_pixels": 954,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     },
+     "1536": {
+      "exposure": 1536.0,
+      "ratio_to_e0": 64.0,
+      "background_7x7_mean_counts": 125.02179718017578,
+      "background_7x7_scaled_to_e0": 1.9534655809402466,
+      "background_7x7_zero_fraction": 0.00013255065328536262,
+      "background_3x3_mean_counts": 126.03882598876953,
+      "background_3x3_scaled_to_e0": 1.969356656074524,
+      "background_3x3_zero_fraction": 0.00013245033112582781,
+      "saturated_grid_pixels_excluded": 42,
+      "saturated_camera_pixels": 1581,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     }
+    },
+    "exposures_with_fewer_than_1_percent_zeros": [
+     384.0,
+     1536.0
+    ],
+    "criterion_fewer_than_1_percent_zeros_met": true,
+    "exposure_ii": 1536.0,
+    "pbr_ii": 656.5766953357804,
+    "ratio_i_over_ii": 0.9332487696905951,
+    "exposure_iii": 384.0,
+    "pbr_iii": 677.6995424066257,
+    "ratio_i_over_iii": 0.9041608482627227,
+    "pbr_i_with_7x7_exclusion": 1072.8281614853793,
+    "ratio_i7_over_ii": 1.633972343378291,
+    "implied_offset_counts_per_pixel": 0.7579339742660522,
+    "pbr_ii_with_3x3_exclusion": 651.2786658677237,
+    "ratio_i_over_ii_3x3": 0.9408405729262512,
+    "background_ii_zero_fraction": 0.00013255065328536262,
+    "ring_3x3_to_7x7_mean_counts_e0": 239.22998046875,
+    "ring_pixels": 40,
+    "background_3x3_definition_unbiased_counts": 2.8485953173839316,
+    "pbr_same_definition_unbiased": 450.2569978117638,
+    "ratio_i_over_same_definition": 1.3608881063649834,
+    "share_of_ring_in_background_e0": 0.43109163641929626,
+    "linearity": {
+     "24_to_96": {
+      "n_pixels": 1303,
+      "ratio_of_sums_over_exposure_ratio": 1.0094803952663736,
+      "fit_slope": 1.0068403346820332,
+      "fit_offset_counts_at_longer_exposure": 2.953895101667433,
+      "implied_dark_offset_counts": -0.984631700555811
+     },
+     "24_to_384": {
+      "n_pixels": 556,
+      "ratio_of_sums_over_exposure_ratio": 1.0239964213541362,
+      "fit_slope": 1.013088827039136,
+      "fit_offset_counts_at_longer_exposure": 18.235174926394958,
+      "implied_dark_offset_counts": -1.2156783284263306
+     },
+     "24_to_1536": {
+      "n_pixels": 0
+     },
+     "96_to_384": {
+      "n_pixels": 4664,
+      "ratio_of_sums_over_exposure_ratio": 1.016317171154418,
+      "fit_slope": 1.0059660367337524,
+      "fit_offset_counts_at_longer_exposure": 5.24560870291581,
+      "implied_dark_offset_counts": -1.74853623430527
+     },
+     "96_to_1536": {
+      "n_pixels": 4065,
+      "ratio_of_sums_over_exposure_ratio": 1.035519414015736,
+      "fit_slope": 1.0339767044193358,
+      "fit_offset_counts_at_longer_exposure": 2.105958221142337,
+      "implied_dark_offset_counts": -0.14039721474282246
+     },
+     "384_to_1536": {
+      "n_pixels": 54569,
+      "ratio_of_sums_over_exposure_ratio": 1.0157068308550499,
+      "fit_slope": 1.0126787751518518,
+      "fit_offset_counts_at_longer_exposure": 1.1799639611782153,
+      "implied_dark_offset_counts": -0.3933213203927384
+     }
+    }
+   },
+   "tm_predicted_pbr": 649.9502043820345
+  },
+  {
+   "index": 4,
+   "target_yx": [
+    66,
+    68
+   ],
+   "focus_metric_last_iteration": 457.7532043457031,
+   "recorded": "2026-11-16T12:21:33",
+   "minutes_since_dataset": 1538.34444125,
+   "analysis": {
+    "target_yx": [
+     66,
+     68
+    ],
+    "peak_yx": [
+     66,
+     68
+    ],
+    "e0": 24.0,
+    "peak_e0_counts_mean": 845.7999877929688,
+    "peak_e0_counts_frames": [
+     852.0,
+     844.0,
+     825.0,
+     851.0,
+     857.0
+    ],
+    "peak_position_per_frame": [
+     [
+      66,
+      68
+     ],
+     [
+      66,
+      68
+     ],
+     [
+      66,
+      68
+     ],
+     [
+      66,
+      68
+     ],
+     [
+      66,
+      68
+     ]
+    ],
+    "pbr_i_frames": [
+     538.3644815256257,
+     519.8938011967699,
+     516.5323294951285,
+     534.5153130738701,
+     531.7944051032948
+    ],
+    "pbr_i": 528.2200660789379,
+    "pbr_i_std": 8.49994202667033,
+    "pbr_i_first_frame": 538.3644815256257,
+    "background_e0_mean_counts": 1.6013580560684204,
+    "background_e0_zero_fraction": 0.48463642365368287,
+    "background_e0_fraction_at_1_count": 0.2814486466094501,
+    "per_exposure": {
+     "24": {
+      "exposure": 24.0,
+      "ratio_to_e0": 1.0,
+      "background_7x7_mean_counts": 1.025087594985962,
+      "background_7x7_scaled_to_e0": 1.025087594985962,
+      "background_7x7_zero_fraction": 0.48641484426772696,
+      "background_3x3_mean_counts": 1.6013580560684204,
+      "background_3x3_scaled_to_e0": 1.6013580560684204,
+      "background_3x3_zero_fraction": 0.4846364236536829,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 845.7999877929688,
+      "largest_count": 857.0
+     },
+     "96": {
+      "exposure": 96.0,
+      "ratio_to_e0": 4.0,
+      "background_7x7_mean_counts": 5.966448783874512,
+      "background_7x7_scaled_to_e0": 1.491612195968628,
+      "background_7x7_zero_fraction": 0.0880810375840197,
+      "background_3x3_mean_counts": 8.294992446899414,
+      "background_3x3_scaled_to_e0": 2.0737481117248535,
+      "background_3x3_zero_fraction": 0.0877487503536735,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 3403.199951171875,
+      "largest_count": 3430.0
+     },
+     "384": {
+      "exposure": 384.0,
+      "ratio_to_e0": 16.0,
+      "background_7x7_mean_counts": 27.100502014160156,
+      "background_7x7_scaled_to_e0": 1.6937813758850098,
+      "background_7x7_zero_fraction": 0.005604468427530058,
+      "background_3x3_mean_counts": 30.44052505493164,
+      "background_3x3_scaled_to_e0": 1.9025328159332275,
+      "background_3x3_zero_fraction": 0.005589651590973468,
+      "saturated_grid_pixels_excluded": 21,
+      "saturated_camera_pixels": 732,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     },
+     "1536": {
+      "exposure": 1536.0,
+      "ratio_to_e0": 64.0,
+      "background_7x7_mean_counts": 112.32308959960938,
+      "background_7x7_scaled_to_e0": 1.7550482749938965,
+      "background_7x7_zero_fraction": 0.00015147211966297453,
+      "background_3x3_mean_counts": 113.8685531616211,
+      "background_3x3_scaled_to_e0": 1.7791961431503296,
+      "background_3x3_zero_fraction": 0.0001513288565213279,
+      "saturated_grid_pixels_excluded": 39,
+      "saturated_camera_pixels": 1400,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     }
+    },
+    "exposures_with_fewer_than_1_percent_zeros": [
+     384.0,
+     1536.0
+    ],
+    "criterion_fewer_than_1_percent_zeros_met": true,
+    "exposure_ii": 1536.0,
+    "pbr_ii": 481.92405863930446,
+    "ratio_i_over_ii": 1.0960649434484524,
+    "exposure_iii": 384.0,
+    "pbr_iii": 499.35605612089915,
+    "ratio_i_over_iii": 1.0578024630005698,
+    "pbr_i_with_7x7_exclusion": 825.1002079530107,
+    "ratio_i7_over_ii": 1.712095906319041,
+    "implied_offset_counts_per_pixel": 0.7299606800079346,
+    "pbr_ii_with_3x3_exclusion": 475.3832178926349,
+    "ratio_i_over_ii_3x3": 1.1111458002672618,
+    "background_ii_zero_fraction": 0.00015147211966297453,
+    "ring_3x3_to_7x7_mean_counts_e0": 153.77999877929688,
+    "ring_pixels": 40,
+    "background_3x3_definition_unbiased_counts": 2.3285650404671348,
+    "pbr_same_definition_unbiased": 363.227985087027,
+    "ratio_i_over_same_definition": 1.4542383510245773,
+    "share_of_ring_in_background_e0": 0.3622785806655884,
+    "linearity": {
+     "24_to_96": {
+      "n_pixels": 1397,
+      "ratio_of_sums_over_exposure_ratio": 1.0103285372047979,
+      "fit_slope": 1.008126200281019,
+      "fit_offset_counts_at_longer_exposure": 2.4521717900637654,
+      "implied_dark_offset_counts": -0.8173905966879218
+     },
+     "24_to_384": {
+      "n_pixels": 605,
+      "ratio_of_sums_over_exposure_ratio": 1.0265007429071178,
+      "fit_slope": 1.017183624245178,
+      "fit_offset_counts_at_longer_exposure": 15.72135798572404,
+      "implied_dark_offset_counts": -1.0480905323816028
+     },
+     "24_to_1536": {
+      "n_pixels": 0
+     },
+     "96_to_384": {
+      "n_pixels": 2910,
+      "ratio_of_sums_over_exposure_ratio": 1.016272017361986,
+      "fit_slope": 1.0099099075404412,
+      "fit_offset_counts_at_longer_exposure": 3.7910198943067206,
+      "implied_dark_offset_counts": -1.2636732981022403
+     },
+     "96_to_1536": {
+      "n_pixels": 2256,
+      "ratio_of_sums_over_exposure_ratio": 1.0300383628387106,
+      "fit_slope": 1.0226860078501412,
+      "fit_offset_counts_at_longer_exposure": 8.619629837920183,
+      "implied_dark_offset_counts": -0.5746419891946789
+     },
+     "384_to_1536": {
+      "n_pixels": 49506,
+      "ratio_of_sums_over_exposure_ratio": 1.014548549909315,
+      "fit_slope": 1.006107403812422,
+      "fit_offset_counts_at_longer_exposure": 2.8194209570200326,
+      "implied_dark_offset_counts": -0.9398069856733442
+     }
+    }
+   },
+   "tm_predicted_pbr": 615.889598408243
+  },
+  {
+   "index": 5,
+   "target_yx": [
+    58,
+    57
+   ],
+   "focus_metric_last_iteration": 452.4522399902344,
+   "recorded": "2026-11-16T12:21:36",
+   "minutes_since_dataset": 1538.3928556833334,
+   "analysis": {
+    "target_yx": [
+     58,
+     57
+    ],
+    "peak_yx": [
+     58,
+     57
+    ],
+    "e0": 24.0,
+    "peak_e0_counts_mean": 715.4000244140625,
+    "peak_e0_counts_frames": [
+     710.0,
+     728.0,
+     708.0,
+     707.0,
+     724.0
+    ],
+    "peak_position_per_frame": [
+     [
+      58,
+      57
+     ],
+     [
+      58,
+      57
+     ],
+     [
+      58,
+      57
+     ],
+     [
+      58,
+      57
+     ],
+     [
+      58,
+      57
+     ]
+    ],
+    "pbr_i_frames": [
+     500.6737164139398,
+     519.4471063257066,
+     504.0233651134685,
+     513.3060120514928,
+     521.0460870155433
+    ],
+    "pbr_i": 511.69925738403026,
+    "pbr_i_std": 8.129648501348518,
+    "pbr_i_first_frame": 500.6737164139398,
+    "background_e0_mean_counts": 1.3982269763946533,
+    "background_e0_zero_fraction": 0.5281146845232481,
+    "background_e0_fraction_at_1_count": 0.2717155522022069,
+    "per_exposure": {
+     "24": {
+      "exposure": 24.0,
+      "ratio_to_e0": 1.0,
+      "background_7x7_mean_counts": 0.9267064332962036,
+      "background_7x7_scaled_to_e0": 0.9267064332962036,
+      "background_7x7_zero_fraction": 0.5300766827605794,
+      "background_3x3_mean_counts": 1.3982269763946533,
+      "background_3x3_scaled_to_e0": 1.3982269763946533,
+      "background_3x3_zero_fraction": 0.5281146845232482,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 715.4000244140625,
+      "largest_count": 728.0
+     },
+     "96": {
+      "exposure": 96.0,
+      "ratio_to_e0": 4.0,
+      "background_7x7_mean_counts": 5.330228328704834,
+      "background_7x7_scaled_to_e0": 1.3325570821762085,
+      "background_7x7_zero_fraction": 0.1134715516425258,
+      "background_3x3_mean_counts": 7.242327690124512,
+      "background_3x3_scaled_to_e0": 1.810581922531128,
+      "background_3x3_zero_fraction": 0.11304347826086956,
+      "saturated_grid_pixels_excluded": 0,
+      "saturated_camera_pixels": 0,
+      "peak_pixel_mean_counts": 2867.39990234375,
+      "largest_count": 2909.0
+     },
+     "384": {
+      "exposure": 384.0,
+      "ratio_to_e0": 16.0,
+      "background_7x7_mean_counts": 24.470945358276367,
+      "background_7x7_scaled_to_e0": 1.529434084892273,
+      "background_7x7_zero_fraction": 0.007857616207516804,
+      "background_3x3_mean_counts": 27.345443725585938,
+      "background_3x3_scaled_to_e0": 1.709090232849121,
+      "background_3x3_zero_fraction": 0.007836842602209423,
+      "saturated_grid_pixels_excluded": 21,
+      "saturated_camera_pixels": 788,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     },
+     "1536": {
+      "exposure": 1536.0,
+      "ratio_to_e0": 64.0,
+      "background_7x7_mean_counts": 101.29194641113281,
+      "background_7x7_scaled_to_e0": 1.5826866626739502,
+      "background_7x7_zero_fraction": 0.00015147211966297453,
+      "background_3x3_mean_counts": 103.1043472290039,
+      "background_3x3_scaled_to_e0": 1.611005425453186,
+      "background_3x3_zero_fraction": 0.000151285930408472,
+      "saturated_grid_pixels_excluded": 36,
+      "saturated_camera_pixels": 1308,
+      "peak_pixel_mean_counts": 4095.0,
+      "largest_count": 4095.0
+     }
+    },
+    "exposures_with_fewer_than_1_percent_zeros": [
+     384.0,
+     1536.0
+    ],
+    "criterion_fewer_than_1_percent_zeros_met": true,
+    "exposure_ii": 1536.0,
+    "pbr_ii": 452.0162084422912,
+    "ratio_i_over_ii": 1.1320374088960545,
+    "exposure_iii": 384.0,
+    "pbr_iii": 467.7547280270351,
+    "ratio_i_over_iii": 1.093947803675552,
+    "pbr_i_with_7x7_exclusion": 771.9812863168058,
+    "ratio_i7_over_ii": 1.7078619569354767,
+    "implied_offset_counts_per_pixel": 0.6559802293777466,
+    "pbr_ii_with_3x3_exclusion": 444.0705245997641,
+    "ratio_i_over_ii_3x3": 1.1522927756694035,
+    "background_ii_zero_fraction": 0.00015147211966297453,
+    "ring_3x3_to_7x7_mean_counts_e0": 125.91500091552734,
+    "ring_pixels": 40,
+    "background_3x3_definition_unbiased_counts": 2.051732463970686,
+    "pbr_same_definition_unbiased": 348.6809498688537,
+    "ratio_i_over_same_definition": 1.4675285746941185,
+    "share_of_ring_in_background_e0": 0.3397277891635895,
+    "linearity": {
+     "24_to_96": {
+      "n_pixels": 1375,
+      "ratio_of_sums_over_exposure_ratio": 1.011501314686027,
+      "fit_slope": 1.007076329147961,
+      "fit_offset_counts_at_longer_exposure": 4.853622784447697,
+      "implied_dark_offset_counts": -1.6178742614825656
+     },
+     "24_to_384": {
+      "n_pixels": 548,
+      "ratio_of_sums_over_exposure_ratio": 1.012184434789427,
+      "fit_slope": 0.8415180828540938,
+      "fit_offset_counts_at_longer_exposure": 279.61177827616194,
+      "implied_dark_offset_counts": -18.640785218410794
+     },
+     "24_to_1536": {
+      "n_pixels": 0
+     },
+     "96_to_384": {
+      "n_pixels": 2171,
+      "ratio_of_sums_over_exposure_ratio": 1.0199953551494123,
+      "fit_slope": 0.9574102758440062,
+      "fit_offset_counts_at_longer_exposure": 41.26009710310682,
+      "implied_dark_offset_counts": -13.753365701035607
+     },
+     "96_to_1536": {
+      "n_pixels": 1582,
+      "ratio_of_sums_over_exposure_ratio": 1.0213458794134447,
+      "fit_slope": 1.0078564257876523,
+      "fit_offset_counts_at_longer_exposure": 16.57745048190084,
+      "implied_dark_offset_counts": -1.105163365460056
+     },
+     "384_to_1536": {
+      "n_pixels": 40615,
+      "ratio_of_sums_over_exposure_ratio": 1.0046442224491656,
+      "fit_slope": 0.8635039075723354,
+      "fit_offset_counts_at_longer_exposure": 50.304066529578975,
+      "implied_dark_offset_counts": -16.768022176526326
+     }
+    }
+   },
+   "tm_predicted_pbr": 603.2630435438442
+  }
+ ],
+ "summary": {
+  "pbr_i": {
+   "mean": 533.3054305550106,
+   "std": 47.286261180310696,
+   "min": 487.58339196162126,
+   "max": 612.7493931296337,
+   "n": 5
+  },
+  "pbr_ii": {
+   "mean": 510.44290173289994,
+   "std": 83.42105599118138,
+   "min": 452.0162084422912,
+   "max": 656.5766953357804,
+   "n": 5
+  },
+  "pbr_iii": {
+   "mean": 528.268181715976,
+   "std": 85.51274014488692,
+   "min": 467.7547280270351,
+   "max": 677.6995424066257,
+   "n": 5
+  },
+  "ratio_i_over_ii": {
+   "mean": 1.0538932532541847,
+   "std": 0.07500041237291029,
+   "min": 0.9332487696905951,
+   "max": 1.1320374088960545,
+   "n": 5
+  },
+  "ratio_i_over_iii": {
+   "mean": 1.0180974959146396,
+   "std": 0.07128918670998914,
+   "min": 0.9041608482627227,
+   "max": 1.093947803675552,
+   "n": 5
+  },
+  "ratio_i7_over_ii": {
+   "mean": 1.68642212181008,
+   "std": 0.04527055776301932,
+   "min": 1.633972343378291,
+   "max": 1.7355319244034797,
+   "n": 5
+  },
+  "ratio_i_over_ii_3x3": {
+   "mean": 1.0665342988632207,
+   "std": 0.0793640788294384,
+   "min": 0.9408405729262512,
+   "max": 1.1522927756694035,
+   "n": 5
+  },
+  "pbr_same_definition_unbiased": {
+   "mean": 374.3677426522378,
+   "std": 43.17959179252875,
+   "min": 346.1221328163064,
+   "max": 450.2569978117638,
+   "n": 5
+  },
+  "ratio_i_over_same_definition": {
+   "mean": 1.4277911866854882,
+   "std": 0.04333352010914744,
+   "min": 1.3608881063649834,
+   "max": 1.4675285746941185,
+   "n": 5
+  },
+  "share_of_ring_in_background_e0": {
+   "mean": 0.37782626748085024,
+   "std": 0.03506808932637352,
+   "min": 0.3397277891635895,
+   "max": 0.43109163641929626,
+   "n": 5
+  },
+  "ring_3x3_to_7x7_mean_counts_e0": {
+   "mean": 168.5459976196289,
+   "std": 42.26042373901141,
+   "min": 125.91500091552734,
+   "max": 239.22998046875,
+   "n": 5
+  },
+  "background_e0_mean_counts": {
+   "mean": 1.6663095235824585,
+   "std": 0.2649358188026089,
+   "min": 1.3982269763946533,
+   "max": 2.0935206413269043,
+   "n": 5
+  },
+  "background_e0_zero_fraction": {
+   "mean": 0.504328963500896,
+   "std": 0.027240728738722398,
+   "min": 0.4753748938979534,
+   "max": 0.5375837027256438,
+   "n": 5
+  },
+  "implied_offset_counts_per_pixel": {
+   "mean": 0.706277322769165,
+   "std": 0.039492804827150695,
+   "min": 0.6559802293777466,
+   "max": 0.7579339742660522,
+   "n": 5
+  }
+ },
+ "warm_up_frames_discarded": 28,
+ "freshness_end": {
+  "pcc_fit_region": [
+   0.94969265172403,
+   0.9437599369849067,
+   0.9418500336154646,
+   0.9515216918467487,
+   0.909891577535951,
+   0.9452709904796321,
+   0.9537529501499737,
+   0.9484660352084409
+  ],
+  "mean": 0.9430257334431434,
+  "pcc_full_frame_mean": 0.9626766619471752,
+  "mean_against_the_previous_mask": -0.010966384388553732,
+  "exposure": 540.0,
+  "correlation_between_frames_of_different_masks": 0.005216280697723857,
+  "level_now_over_dataset": 1.0046178102493286,
+  "saturated_pixels_per_frame": 0.0,
+  "minutes_since_dataset": 1538.4247984833335
+ },
+ "camera_state_after": {
+  "image_camera": {
+   "serial": "40237702",
+   "model": "daA1920-160um",
+   "vendor": "Basler",
+   "device_class": "BaslerUsb",
+   "PixelFormat": "Mono12",
+   "BlackLevel": 0.0,
+   "BlackLevel_min": 0.0,
+   "BlackLevel_max": 4095.0,
+   "BlackLevel_unit": "DN",
+   "BlackLevelSelector": "All",
+   "Gain": 0.0,
+   "Gain_min": 0.0,
+   "Gain_max": 48.00000004350822,
+   "Gain_unit": "dB",
+   "GainSelector": "All",
+   "GainAuto": "Off",
+   "ExposureAuto": "Off",
+   "ExposureMode": "Timed",
+   "ExposureTime": 540.0,
+   "ExposureTime_min": 24.0,
+   "ExposureTime_max": 10000000.0,
+   "ExposureTime_unit": "us",
+   "Gamma": 1.0,
+   "DigitalShift": 0,
+   "BinningHorizontal": 1,
+   "BinningVertical": 1,
+   "BinningHorizontalMode": "Sum",
+   "BinningVerticalMode": "Sum",
+   "Width": 1920,
+   "Height": 1200,
+   "OffsetX": 8,
+   "OffsetY": 8,
+   "SensorWidth": 1936,
+   "SensorHeight": 1216,
+   "ReverseX": false,
+   "ReverseY": false,
+   "TriggerMode": "On",
+   "TriggerSource": "Software",
+   "BslUSBSpeedMode": "SuperSpeed",
+   "DeviceLinkSpeed": 4000000000,
+   "SensorReadoutMode": "not available (LogicalErrorException)",
+   "ShutterMode": "not available (LogicalErrorException)",
+   "DeviceModelName": "daA1920-160um",
+   "DeviceFirmwareVersion": "p=du1_imx392m/s=r/v=1.2.1/i=6515.14/h=61c0643",
+   "BslContrastMode": "Linear",
+   "BslBrightness": 0.0,
+   "BslContrast": 0.0,
+   "PgiMode": "not available (LogicalErrorException)",
+   "DefectPixelCorrectionMode": "not available (LogicalErrorException)"
+  }
+ },
+ "finished": "2026-11-16T12:21:41"
+}

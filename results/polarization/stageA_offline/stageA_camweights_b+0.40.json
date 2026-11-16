@@ -1,0 +1,164 @@
+{
+ "A3": {
+  "checkpoint": "<lab>\\claude\\97281a06675b1373\\b8574f89-302d-405b-9fc2-6a2b72ddd1ac\\scratchpad\\camweights_ckpt\\tm_system_checkpoint_camweights_b+0.40.pt",
+  "fourier_pol_weights_of_model": [
+   1.4,
+   0.6
+  ],
+  "d": -0.8456141251261589,
+  "d_from_s2_amplitude": 0.8090892463293451,
+  "d_from_total_intensity": -0.700602410617783,
+  "theta0_deg": 2.706091385339999,
+  "s0_leak_into_a2": -7.341586769992695e-17,
+  "explained_fraction": 0.7149947607070919,
+  "explained_fraction_unitary_only_same_data": 0.16517519364276956,
+  "pcc_per_angle": [
+   0.6793213858265699,
+   0.8004754637472722,
+   0.8601709654259445,
+   0.7658248252091724
+  ],
+  "pcc_per_angle_unitary_run": [
+   0.41646442008547846,
+   0.6826087093216058,
+   0.3161993394192339,
+   0.1455084546680705
+  ],
+  "d_theta0_fixed_0": -0.8444818069641247,
+  "explained_fraction_theta0_fixed_0": 0.7074059503830856,
+  "R": [
+   [
+    -0.9984611309380065,
+    -0.054705096005331216,
+    -0.009095189775061437
+   ],
+   [
+    -0.04723784873137349,
+    0.7530641164082509,
+    0.6562492074094198
+   ],
+   [
+    -0.029050914843232835,
+    0.6556689630059572,
+    -0.7544894003877479
+   ]
+  ],
+  "U_abs": [
+   [
+    0.027738682935501236,
+    0.9996152087019663
+   ],
+   [
+    0.9996152087019663,
+    0.027738682935501236
+   ]
+  ],
+  "U_real": [
+   [
+    0.005328815123845073,
+    -0.35032399794392016
+   ],
+   [
+    0.35032399794392016,
+    0.005328815123845073
+   ]
+  ],
+  "U_imag": [
+   [
+    0.027222017933506464,
+    -0.9362177427996459
+   ],
+   [
+    -0.9362177427996459,
+    -0.027222017933506464
+   ]
+  ],
+  "xprime_azimuth_deg": 91.3543405194646,
+  "xprime_ellipticity_deg": -0.83236451355342,
+  "angle_to_unitary_only_R_deg": 58.719445485121156,
+  "angle_between_first_rows_deg": 56.71248105194887,
+  "shifts_px": [
+   [
+    -10.179156215684637,
+    2.636562902866256
+   ],
+   [
+    -9.08816211804486,
+    -4.929669037150452
+   ],
+   [
+    -2.977747967721216,
+    -9.286373555770139
+   ],
+   [
+    4.459235014921384,
+    -8.072227626727857
+   ]
+  ],
+  "foci": {
+   "tm_axes_uncorrected": {
+    "A": {
+     "measured_tau": 0.16020050638091096,
+     "predicted_tau": 0.1712762949300732,
+     "predicted_tau_unitary_run": 0.9150047128532638,
+     "predicted_tau_R_speckle_d_foci": 0.3348502854053318,
+     "predicted_tau_before_arm_in_estimator_axes": 0.7564803775152933,
+     "model_peak_yx": [
+      48,
+      56
+     ],
+     "model_window_share_of_total": 0.1041916012763977
+    },
+    "B": {
+     "measured_tau": 0.12334263041960335,
+     "predicted_tau": 0.10180084010941626,
+     "predicted_tau_unitary_run": 0.3530767557655337,
+     "predicted_tau_R_speckle_d_foci": 0.20236231171696278,
+     "predicted_tau_before_arm_in_estimator_axes": 0.5395414769222714,
+     "model_peak_yx": [
+      80,
+      73
+     ],
+     "model_window_share_of_total": 0.0661822035908699
+    },
+    "separation_measured": 0.036857875961307615,
+    "separation_predicted": 0.06947545482065695,
+    "separation_predicted_R_speckle_d_foci": 0.132487973688369
+   },
+   "lab_axes": {
+    "A": {
+     "measured_tau": 0.6680782474906587,
+     "predicted_tau": 0.7002849158095353,
+     "predicted_tau_unitary_run": 0.5908283102490246,
+     "predicted_tau_R_speckle_d_foci": 0.8424817180768386,
+     "predicted_tau_before_arm_in_estimator_axes": 0.9672195994543515,
+     "model_peak_yx": [
+      48,
+      56
+     ],
+     "model_window_share_of_total": 0.09291596710681915
+    },
+    "B": {
+     "measured_tau": 0.025518153514188464,
+     "predicted_tau": 0.07785357188918657,
+     "predicted_tau_unitary_run": 0.11168185553507262,
+     "predicted_tau_R_speckle_d_foci": 0.15395373997938705,
+     "predicted_tau_before_arm_in_estimator_axes": 0.43301099295336065,
+     "model_peak_yx": [
+      80,
+      72
+     ],
+     "model_window_share_of_total": 0.07496656477451324
+    },
+    "separation_measured": 0.6425600939764702,
+    "separation_predicted": 0.6224313439203488,
+    "separation_predicted_R_speckle_d_foci": 0.6885279780974516
+   }
+  },
+  "foci_mean_abs_error": 0.02928991638830602,
+  "foci_mean_abs_error_unitary_run": 0.2869879927702004,
+  "foci_mean_abs_error_R_speckle_d_foci": 0.1391271293432897,
+  "d_foci_used": -0.673,
+  "fit_region_radius_px": 50.1
+ }
+}

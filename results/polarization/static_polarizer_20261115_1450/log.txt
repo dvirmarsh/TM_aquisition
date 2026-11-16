@@ -1,0 +1,25 @@
+Rotation stage 27268833 connected, homed, at 360.000 deg
+0
+Blink SDK was successfully constructed
+Camera 40237702: PixelFormat -> Mono12, ExposureTime -> 540.000
+Camera 40238131: PixelFormat -> Mono12, ExposureTime -> 675.000
+
+=== Coarse scan, 0 .. 170 deg in steps of 10 deg ===
+  exposure 675; power per angle (millions of counts): [0.17, 0.16, 2.24, 6.4, 12.09, 18.61, 25.14, 30.9, 35.14, 37.42, 37.43, 35.23, 30.96, 25.21, 18.63, 12.15, 6.49, 2.32]
+  Malus fit: maximum at 95.1 deg, extinction at 5.1 deg; fitted degree of linear polarization 1.014; measured minimum / maximum 0.0043; largest count 1535
+  centre of the image at the brightest angle: (-7, -38) camera px from the nominal centre
+
+=== Fine scan, stage 173 .. 197 deg in steps of 1 deg, exposures [675.0, 2700.0, 10800.0, 43200.0] ===
+  exposure 675: extinction upward 185.140 deg (fit 0.052, bootstrap 0.053), downward 185.130 deg; minimum / maximum of the fit -0.00141; residual / amplitude 0.0021; largest count 93
+  exposure 2700: extinction upward 185.131 deg (fit 0.018, bootstrap 0.016), downward 185.132 deg; minimum / maximum of the fit -0.00073; residual / amplitude 0.0007; largest count 354
+  exposure 10800: extinction upward 185.129 deg (fit 0.006, bootstrap 0.005), downward 185.130 deg; minimum / maximum of the fit -0.00021; residual / amplitude 0.0002; largest count 1391
+  exposure 43200: saturated somewhere in the range, not used
+  extinction at stage 5.13 deg (measured at 185.13); upward and downward differ by +0.001 deg; spread over the exposures 0.006 deg
+
+=== Check of the maximum ===
+  maximum of a parabola through 9 points: stage 95.0 deg (-0.1 deg from extinction + 90 deg); power at the maximum / lowest power of the fine scan: 10754
+
+RESULT: the rotating polarizer is parallel to the static polarizer at stage 95.13 +- 0.00 deg (and at 275.13 deg); crossed at 5.13 deg. The stage is left at 95.13 deg.
+Saved to <lab>\TM_lib\tm_focus_outputs\static_polarizer_20261115_1450; warm-up frames discarded: 228
+Camera 40237702: PixelFormat -> Mono8, ExposureTime -> 19.000 (min)
+Camera 40238131: PixelFormat -> Mono8, ExposureTime -> 19.000 (min)
